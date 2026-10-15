@@ -48,6 +48,7 @@ Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on 
 ## Working rules
 
 - **Never run `uv` commands yourself** (`uv add`, `uv sync`, `uv run`, `uv pip`, `uv init`, etc.). If a dependency, environment change or command is needed, stop and brainstorm it with the user first: what's needed, why, and the alternatives. Let the user run it.
+- **Never `git commit` or `git push`.** Leave changes in the working tree; the user reviews and commits.
 - **Simple and well-engineered beats clever.** The brief says so explicitly. Avoid speculative abstractions and extra features.
 - **Keep the mock small:** SQLite, a handful of seeded suppliers, catalogue items and stock rows.
 - **Tool design matters:** write clear names, tight JSON schemas, descriptions the model can act on, and error messages that tell the model what to do next.
@@ -86,7 +87,8 @@ The mock is a separate HTTP service so that the MCP server's authentication to i
 - On the next turn the UI sends `interruptResponse {interruptId, response: "approve" | "decline"}`. The agent is rebuilt from the session store and the hook resumes: approve lets the tool run, decline sets `event.cancel_tool`.
 - **Every PO is approved on its own.** Don't use the docs' "trust" pattern of remembering approval in `agent.state`.
 - **Approval is structured, never inferred by the model.** UI buttons send the `interruptResponse`. A typed "yes" may map to it in code, but we never ask the LLM whether the user approved.
-- **Idempotency key = `session_id` + `toolUseId`**, which is stable across the pause and resume. The hook or the server sets it, never the model. *To verify:* whether the hook can change `tool_use["input"]`, or whether the key must be derived on the MCP side.
+- **Idempotency key = hash(`user_id`, `session_id`, normalized order)**, derived by the MCP server, never by the model. `user_id` and `session_id` reach the MCP server as connection headers set by the agent service. Why not `session_id` + `toolUseId`: if a write commits but the client sees a 503 and gives up, the user's next attempt is a new tool call with a new `toolUseId`, so a new key and a duplicate PO. Trade-off: an identical order placed twice in one session returns the existing PO. (Verified: a Strands `BeforeToolCallEvent` hook *can* modify `tool_use["input"]`, so hook-injected keys remain an option.)
+  - **TODO, explore later:** other key strategies, e.g. a key tied to the approval/interrupt id, reconciling by looking up the PO after a give-up, or letting the user explicitly re-order the same items in one session.
 
 ### Memory: one `memory` component on SQLite (decided)
 
@@ -135,7 +137,12 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 ### Still open
 
 - Short-term memory retention period.
-- Nothing is scaffolded yet. No code has been written.
+- Package name for the agent HTTP service + web UI (`api/` is now taken by the mock).
+- Other idempotency-key strategies (see the Approval section).
+
+## Dependencies
+
+One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencies`; each layer's runtime deps go in its own dependency group (`api`, `mcp`, `agent`), plus `dev`. `default-groups = "all"` installs everything locally; each service image installs only its group (`uv sync --locked --no-default-groups --group <layer>`). Groups don't stop cross-layer imports, so keep `api/` free of agent/MCP imports.
 
 ## Layout (proposed — update as it settles)
 
@@ -143,9 +150,9 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 src/supplies_agent/
   agent/        # Strands agent, prompts, approval hook
   memory/       # SQLite SessionRepository + user facts
-  api/          # HTTP service + static web UI
-  mcp_server/   # MCP server exposing the mock as tools
-  mock/         # inventory/ordering mock (SQLite) + fault injection
+  ???/          # agent HTTP service + static web UI (name TBD)
+  mcp_server/   # MCP server exposing the mock as tools  [done]
+  api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics
 evals/          # eval cases + runner
 tests/
@@ -155,4 +162,11 @@ docs/SCOPE.md   # assignment brief
 
 ## Commands
 
-_TBD: fill in once the project is scaffolded (install, run, test, eval)._
+The user runs all `uv` commands (see Working rules).
+
+- Install: `uv sync`
+- Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
+- Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers.
+- Test: `uv run pytest`
+- Lint/format: `uv run ruff check . && uv run ruff format .`
+- Eval: _TBD_

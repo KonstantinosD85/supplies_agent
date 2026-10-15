@@ -7,25 +7,38 @@ authors = [
     { name = "Ntaikos Kostantinos", email = "daikoskon@gmail.com" }
 ]
 requires-python = ">=3.12"
+# Shared by every layer. Per-layer runtime deps live in the dependency groups below,
+# so each service image installs only its own group (uv sync --no-default-groups --group <layer>).
 dependencies = [
-    "fastapi>=0.143.1",
     "pydantic-settings>=2.16.0",
-    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
 mock-api = "supplies_agent.api.app:main"
+mcp-server = "supplies_agent.mcp_server.server:main"
 
 [build-system]
 requires = ["uv_build>=0.10.12,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+api = [
+    "fastapi>=0.143.1",
+    "uvicorn[standard]>=0.54.0",
+]
 dev = [
     "httpx2>=2.13.1",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]
+mcp = [
+    "httpx2>=2.13.1",
+    "mcp>=2.1,<2.2",
+]
+
+[tool.uv]
+# Install every group locally, so uv sync / uv run work unchanged.
+default-groups = "all"
 
 [tool.ruff]
 line-length = 100
