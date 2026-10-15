@@ -115,3 +115,10 @@ def test_invocation_is_logged_without_message_text(client_for, caplog):
     assert "user_id=<alice>, session_id=<session-1>, stop_reason=<end_turn>" in line
     assert "tools=<check_stock>, tool_errors=<0>, input_tokens=<20>, output_tokens=<10>" in line
     assert "PBS" not in caplog.text  # neither the message nor tool results are logged
+
+
+def test_root_serves_the_web_ui(client_for):
+    response = client_for(ScriptedModel()).get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/invocations" in response.text

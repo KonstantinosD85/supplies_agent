@@ -173,7 +173,7 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 
 ```
 src/supplies_agent/
-  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping) + web UI
+  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping, / = static/index.html web UI)
   memory/       # SQLite SessionRepository (sessions.py) + user facts
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
@@ -191,7 +191,7 @@ The user runs all `uv` commands (see Working rules).
 - Install: `uv sync`
 - Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
 - Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers.
-- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations` and `GET /ping` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
+- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
 - Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
 - Eval: _TBD_

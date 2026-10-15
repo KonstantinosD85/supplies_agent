@@ -70,8 +70,14 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 
 ### D4: Web UI
 
-- [ ] Static page served by the agent service.
-- [ ] `/invocations` response adds `pending_approval` (`tool_calls` already done in D1).
+- [x] Static page (`agent/static/index.html`, plain JS, no build) served at `GET /` by the agent service.
+- [x] `/invocations` already returns `tool_calls` (D1) and `pending_approvals` (D3).
+- [x] User id input, session id from `crypto.randomUUID()`, "New session" button.
+- [x] Per-turn tool-call log (input, status, result), tokens and latency.
+- [x] Approval cards with Approve/Decline; one request decides every pending order; composer locked meanwhile.
+- [x] Transcript kept in `localStorage` (no history endpoint); a 409 re-syncs the pending list from the server.
+- [ ] Live check in a browser: propose → approve, propose → decline, approve after a restart, another user → 403.
+- On AgentCore the runtime only routes `/invocations` and `/ping`, so the page would be hosted separately (AGENTCORE.md).
 
 ### D5: User facts
 
@@ -108,7 +114,6 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 
 ## Open decisions
 
-- Order of D4 (UI) and D5 (user facts).
 - Short-term memory retention period (D2).
 - Other idempotency-key strategies (see CLAUDE.md, Approval section).
 - User identity on AgentCore: from a validated JWT, not the `X-User-Id` header (local version trusts the header).

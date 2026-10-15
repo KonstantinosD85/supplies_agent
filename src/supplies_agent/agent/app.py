@@ -9,10 +9,12 @@ import logging
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from pathlib import Path
 from typing import Annotated, Any
 
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
 from strands import Agent
 from strands.agent import AgentResult
 from strands.models import Model
@@ -43,6 +45,10 @@ ModelFactory = Callable[[AgentSettings], Model]
 ToolSource = Callable[[AgentSettings, RequestContext], AbstractContextManager[list[Any]]]
 
 MAX_RESULT_CHARS = 2000
+
+# The local web UI. On AgentCore the runtime only routes /invocations and /ping, so the page
+# would be hosted elsewhere.
+INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 
 
 AWAITING_APPROVAL_REPLY = "Please approve or decline this purchase order."
@@ -106,6 +112,10 @@ def create_app(
     locks = SessionLocks()
 
     sessions.setup(settings.db_path, settings.session_retention_days)
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        return FileResponse(INDEX_HTML)
 
     @app.get("/ping")
     def ping() -> dict[str, str]:
