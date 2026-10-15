@@ -5,7 +5,7 @@ from scripted_model import ScriptedModel, tool_call
 from strands import tool
 
 from supplies_agent.agent.app import AWAITING_APPROVAL_REPLY
-from supplies_agent.agent.approval import DECLINED_MESSAGE
+from supplies_agent.agent.approval import DECLINED_MESSAGE, MISSING_DELIVERY_MESSAGE
 
 LINES = [{"sku": "LC-GLOVE-M", "quantity": 2}]
 
@@ -46,7 +46,7 @@ def decide(client, model, body: dict, decision: str):
 
 
 def test_proposal_stops_the_turn_before_the_order_is_placed(client, placed):
-    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES))
+    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"))
     body = propose(client, model)
 
     assert body["stop_reason"] == "interrupt"
@@ -59,7 +59,9 @@ def test_proposal_stops_the_turn_before_the_order_is_placed(client, placed):
 
 
 def test_approve_places_the_order_once(client, placed):
-    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES), "Placed PO-000001.")
+    model = ScriptedModel(
+        tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"), "Placed PO-000001."
+    )
     body = propose(client, model)
 
     response = decide(client, model, body, "approve")  # a new app: survives a restart
@@ -75,7 +77,9 @@ def test_approve_places_the_order_once(client, placed):
 
 
 def test_decline_does_not_place_the_order(client, placed):
-    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES), "OK, not placed.")
+    model = ScriptedModel(
+        tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"), "OK, not placed."
+    )
     body = propose(client, model)
 
     declined = decide(client, model, body, "decline").json()
@@ -89,9 +93,9 @@ def test_decline_does_not_place_the_order(client, placed):
 
 def test_every_order_needs_its_own_approval(client, placed):
     model = ScriptedModel(
-        tool_call("create_purchase_order", lines=LINES),
+        tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"),
         "Placed.",
-        tool_call("create_purchase_order", lines=LINES),
+        tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"),
     )
     decide(client, model, propose(client, model), "approve")
 
@@ -101,7 +105,7 @@ def test_every_order_needs_its_own_approval(client, placed):
 
 
 def test_message_while_an_order_waits_is_refused(client, placed):
-    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES))
+    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"))
     body = propose(client, model)
 
     response = client(model).post("/invocations", json={"message": "yes"})
@@ -122,7 +126,7 @@ def test_decision_without_a_pending_order_is_refused(client):
 
 
 def test_decision_for_an_unknown_order_is_refused(client, placed):
-    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES))
+    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"))
     propose(client, model)
 
     response = client(model).post(
@@ -142,3 +146,15 @@ def test_decision_for_an_unknown_order_is_refused(client, placed):
 )
 def test_malformed_decisions_are_rejected(client, body):
     assert client(ScriptedModel()).post("/invocations", json=body).status_code == 422
+
+
+def test_order_without_a_delivery_location_is_sent_back_not_proposed(client, placed):
+    model = ScriptedModel(tool_call("create_purchase_order", lines=LINES), "Where to?")
+    body = propose(client, model)
+
+    assert body["pending_approvals"] == []
+    assert body["stop_reason"] == "end_turn"
+    [call] = body["tool_calls"]
+    assert call["status"] == "error"
+    assert MISSING_DELIVERY_MESSAGE in call["result"]
+    assert placed == []

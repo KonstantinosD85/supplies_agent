@@ -26,6 +26,11 @@ DECLINED_MESSAGE = (
     "placed, and do not place it again unless they ask."
 )
 
+MISSING_DELIVERY_MESSAGE = (
+    "deliver_to is required. Ask the user where to deliver the order (or use their saved "
+    "delivery_location), then call create_purchase_order again with it."
+)
+
 
 class ApprovalHook(HookProvider):
     def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
@@ -36,10 +41,14 @@ class ApprovalHook(HookProvider):
             return
 
         order = event.tool_use["input"]
+        if not str(order.get("deliver_to") or "").strip():
+            # Never show the user an order that can't be placed: send the model back to ask.
+            event.cancel_tool = MISSING_DELIVERY_MESSAGE
+            return
         # First pass: raises an interrupt and ends the turn. On resume: returns the decision.
         decision = event.interrupt(
             INTERRUPT_NAME,
-            reason={"lines": order.get("lines", []), "deliver_to": order.get("deliver_to")},
+            reason={"lines": order.get("lines", []), "deliver_to": order["deliver_to"]},
         )
         logger.info(
             "tool_use_id=<%s>, decision=<%s> | purchase order approval decided",

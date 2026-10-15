@@ -81,7 +81,7 @@ class PurchaseOrderResult(BaseModel):
     po_number: str
     status: str
     supplier: str
-    deliver_to: str | None
+    deliver_to: str
     lines: list[OrderedLine]
     total: str
     created_at: str
@@ -251,11 +251,16 @@ def build_server(settings: McpSettings, api: SuppliesApi | None = None) -> MCPSe
             list[OrderLine],
             Field(min_length=1, max_length=20, description="Items to order, one entry per SKU."),
         ],
-        ctx: Context,
         deliver_to: Annotated[
-            str | None,
-            Field(max_length=200, description="Delivery location, e.g. 'Lab 3.12'."),
-        ] = None,
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Delivery location, e.g. 'Lab 3.12'. Ask the user if you don't "
+                "know it; never guess.",
+            ),
+        ],
+        ctx: Context,
     ) -> PurchaseOrderResult:
         """Raise a purchase order with one approved supplier.
 

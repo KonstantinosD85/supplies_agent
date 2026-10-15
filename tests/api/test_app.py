@@ -9,7 +9,11 @@ from supplies_agent.api.settings import ApiSettings
 
 API_KEY = "test-key"
 AUTH = {"X-API-Key": API_KEY}
-ORDER = {"requested_by": "alice", "lines": [{"sku": "LC-GLOVE-M", "quantity": 2}]}
+ORDER = {
+    "requested_by": "alice",
+    "deliver_to": "Lab 3.12",
+    "lines": [{"sku": "LC-GLOVE-M", "quantity": 2}],
+}
 
 
 @pytest.fixture
@@ -116,8 +120,21 @@ def test_same_key_same_order_is_replayed_not_duplicated(client):
 
 def test_same_key_different_order_conflicts(client):
     create_po(client, "key-00000001")
-    other = {"requested_by": "alice", "lines": [{"sku": "LC-GLOVE-M", "quantity": 5}]}
+    other = {
+        "requested_by": "alice",
+        "deliver_to": "Lab 3.12",
+        "lines": [{"sku": "LC-GLOVE-M", "quantity": 5}],
+    }
     assert create_po(client, "key-00000001", other).status_code == 409
+
+
+@pytest.mark.parametrize("deliver_to", [None, ""])
+def test_delivery_location_is_required(client, deliver_to):
+    order = {k: v for k, v in ORDER.items() if k != "deliver_to"}
+    if deliver_to is not None:
+        order["deliver_to"] = deliver_to
+    assert create_po(client, "key-00000001", order).status_code == 422
+    assert client.get("/purchase-orders", headers=AUTH).json()["total"] == 0
 
 
 def test_idempotency_key_is_required(client):
@@ -141,7 +158,9 @@ def test_idempotency_key_is_required(client):
     ],
 )
 def test_invalid_orders_are_rejected_with_guidance(client, lines, message):
-    response = create_po(client, "key-00000001", {"requested_by": "alice", "lines": lines})
+    response = create_po(
+        client, "key-00000001", {"requested_by": "alice", "deliver_to": "Lab 3.12", "lines": lines}
+    )
     assert response.status_code == 422
     assert message in response.json()["detail"]
     assert client.get("/purchase-orders", headers=AUTH).json()["total"] == 0

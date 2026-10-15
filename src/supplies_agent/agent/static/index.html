@@ -355,7 +355,7 @@ function approvalView(p) {
     el("table", {},
       el("tr", {}, el("th", {}, "SKU"), el("th", { class: "qty" }, "Qty")),
       ...p.lines.map((l) => el("tr", {}, el("td", {}, el("code", {}, l.sku)), el("td", { class: "qty" }, String(l.quantity))))),
-    el("div", { class: "deliver" }, `Deliver to: ${p.deliver_to || "not specified"}`),
+    el("div", { class: "deliver" }, `Deliver to: ${p.deliver_to}`),
     actions));
 }
 

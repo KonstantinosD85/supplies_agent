@@ -99,9 +99,11 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 | Layer | Holds | Mechanism | Scope / lifetime |
 |---|---|---|---|
 | Short-term | Conversation history, agent state, pending interrupts | Our own `SessionRepository` (SQLite), plugged into Strands' `RepositorySessionManager` | Per `(user_id, session_id)`; purged after 30 days without activity (`AGENT_SESSION_RETENTION_DAYS`) |
-| Long-term | User facts (lab, team, delivery location) | `user_facts` table; loaded into the system prompt and updated by a local `remember_fact` tool | Per `user_id`, until overwritten |
+| Long-term | User facts (lab, team, delivery location) | Strands memory SDK: our `SqliteFactStore` (`memory/facts.py`, `user_facts` table) in a `MemoryManager`; the profile is injected into the model input on each new message, written only by the `remember_fact` tool through `memory_manager.add` | Per `user_id`, until overwritten |
 
-- **Isolation is structural.** Each session row stores its owner's `user_id`, and the service rejects any request for a session owned by someone else. Memory tools take `user_id` from the request context, never from model arguments.
+- **Isolation is structural.** Each session row stores its owner's `user_id`, and the service rejects any request for a session owned by someone else. The fact store is built per request bound to the caller's `user_id`; no memory tool takes a user id from the model.
+- **Facts are a closed set of keys** (`lab`, `team`, `delivery_location`), one value per key: `remember_fact(key, value)` calls `memory_manager.add(value, {"metadata": {"key": key}})` and the store upserts. The SDK's own `search_memory` and free-text `add_memory` tools and extraction stay off. Injection is ephemeral (not saved in session history) and skipped on approval turns.
+- **Every order needs a delivery location.** `deliver_to` is required by the mock, the MCP tool and the approval card. The agent uses the saved `delivery_location`, otherwise asks once and saves the answer; a location for one order doesn't replace the saved one. The approval hook sends an order without `deliver_to` back to the model instead of proposing it.
 
 ### Observability: OpenTelemetry → Grafana `otel-lgtm` (decided)
 
@@ -166,7 +168,7 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 
 - `api`, `mcp_server` and `memory` import no other layer; `agent` may import `memory`; every layer may import `logs`.
 - Layers talk over their real interfaces: agent → MCP server over MCP, MCP server → mock over HTTP.
-- `agent` uses only `memory`'s public API (`__all__` in each memory module: `setup`, `session_manager`, `SessionAccessDenied`). `memory` takes plain ids, never the agent's `RequestContext`.
+- `agent` uses only `memory`'s public API (`__all__` in each memory module: `sessions.setup`, `session_manager`, `SessionAccessDenied`; `facts.setup`, `store`, `FACT_KEYS`, `STORE_NAME`). `memory` takes plain ids, never the agent's `RequestContext`.
 - A new top-level package needs a rule in `tests/test_layers.py` (a test fails until it has one).
 
 ## Layout (proposed — update as it settles)
@@ -174,7 +176,7 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 ```
 src/supplies_agent/
   agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping, / = static/index.html web UI)
-  memory/       # SQLite SessionRepository (sessions.py) + user facts
+  memory/       # SQLite SessionRepository (sessions.py) + MemoryStore for user facts (facts.py)
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics

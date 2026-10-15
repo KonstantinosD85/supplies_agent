@@ -76,15 +76,24 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Per-turn tool-call log (input, status, result), tokens and latency.
 - [x] Approval cards with Approve/Decline; one request decides every pending order; composer locked meanwhile.
 - [x] Transcript kept in `localStorage` (no history endpoint); a 409 re-syncs the pending list from the server.
-- [ ] Live check in a browser: propose → approve, propose → decline, approve after a restart, another user → 403.
+- [x] Live check in a browser: propose → approve, propose → decline, approve after a restart, another user → 403.
 - On AgentCore the runtime only routes `/invocations` and `/ping`, so the page would be hosted separately (AGENTCORE.md).
 
 ### D5: User facts
 
-- [ ] `user_facts` table.
-- [ ] Local `remember_fact` tool; `user_id` comes from the request context, never from model arguments.
-- [ ] Facts injected into the system prompt.
-- [ ] Isolation tests.
+- [x] Strands memory SDK: `SqliteFactStore` (`memory/facts.py`, `user_facts` table) implements `MemoryStore`;
+  one value per key (`lab`, `team`, `delivery_location`), bound to the caller's `user_id`.
+- [x] `MemoryManager` per request: profile injected on each new message (not saved in history);
+  `search_memory`, `add_memory` and extraction off.
+- [x] `remember_fact(key, value)` tool (`agent/profile.py`) writes through `memory_manager.add`; no user id in its schema.
+- [x] Delivery location required: mock API (422), MCP tool schema, approval card; the hook sends an
+  order without `deliver_to` back to the model. Prompt: use the saved location, else ask once and save it;
+  a one-off location doesn't replace the saved one.
+- [x] Tests: upsert, key/value validation, isolation, injection in a new session, nothing injected for
+  another user, injection not stored in history, missing delivery location at each layer.
+- [ ] Live check with a real model: "order gloves" → asked where → "Lab 3.12" → card shows it; new
+  session → no question; another user → asked.
+- On AgentCore the store is replaced by AgentCore Memory; `remember_fact` and the manager stay.
 
 ### D6: Evals
 

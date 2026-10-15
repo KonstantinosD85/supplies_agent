@@ -67,6 +67,7 @@ def test_agent_reads_through_mcp(mcp_url, tmp_path):
         "check_stock",
         "create_purchase_order",
         "get_catalog_item",
+        "remember_fact",
         "search_catalog",
     ]
     assert [c["name"] for c in body["tool_calls"]] == ["check_stock", "search_catalog"]
@@ -85,7 +86,9 @@ def test_tool_errors_reach_the_model(mcp_url, tmp_path):
     assert "Search the catalogue for valid SKUs" in str(model.calls[1]["messages"][-1])
 
 
-ORDER = tool_call("create_purchase_order", lines=[{"sku": "LC-GLOVE-M", "quantity": 2}])
+ORDER = tool_call(
+    "create_purchase_order", lines=[{"sku": "LC-GLOVE-M", "quantity": 2}], deliver_to="Lab 3.12"
+)
 
 
 @pytest.mark.anyio

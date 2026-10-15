@@ -60,7 +60,7 @@ class PendingApproval(BaseModel):
 
     interrupt_id: str
     lines: list[OrderLine]
-    deliver_to: str | None = None
+    deliver_to: str
 
 
 class ChatResponse(BaseModel):

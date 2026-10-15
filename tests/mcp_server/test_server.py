@@ -53,6 +53,7 @@ async def test_lists_the_four_tools(server):
     # Identity and idempotency key are never arguments the model can set.
     order_args = tools["create_purchase_order"].input_schema["properties"]
     assert set(order_args) == {"lines", "deliver_to"}
+    assert set(tools["create_purchase_order"].input_schema["required"]) == {"lines", "deliver_to"}
 
 
 async def test_check_stock(server):
@@ -98,7 +99,8 @@ async def test_api_outage_tells_model_to_stop(server, api):
 async def test_order_needs_user_and_session(server):
     async with Client(server) as client:  # in-process: no HTTP headers
         result = await client.call_tool(
-            "create_purchase_order", {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}]}
+            "create_purchase_order",
+            {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}], "deliver_to": "Lab 3.12"},
         )
     assert result.is_error
     assert "no user or session" in text(result)
@@ -122,7 +124,7 @@ async def test_create_purchase_order_over_http(server, api):
 
 
 async def test_same_order_in_another_session_is_a_new_order(server, api):
-    order = {"lines": [{"sku": "LC-GLOVE-M", "quantity": 2}]}
+    order = {"lines": [{"sku": "LC-GLOVE-M", "quantity": 2}], "deliver_to": "Lab 3.12"}
     async with http_client(server, IDENTITY) as client:
         await client.call_tool("create_purchase_order", order)
     async with http_client(server, {**IDENTITY, "X-Session-Id": "session-2"}) as client:
@@ -133,7 +135,9 @@ async def test_same_order_in_another_session_is_a_new_order(server, api):
 async def test_order_rejected_by_api_reaches_the_model(server):
     lines = [{"sku": "LC-GLOVE-M", "quantity": 1}, {"sku": "BL-PBS-500", "quantity": 1}]
     async with http_client(server, IDENTITY) as client:
-        result = await client.call_tool("create_purchase_order", {"lines": lines})
+        result = await client.call_tool(
+            "create_purchase_order", {"lines": lines, "deliver_to": "Lab 3.12"}
+        )
     assert result.is_error
     assert "one purchase order per supplier" in text(result)
 
@@ -142,14 +146,19 @@ async def test_order_outage_says_retrying_is_safe(server, api):
     await api.request("PUT", "/admin/faults", json={"server_error_rate": 1})
     async with http_client(server, IDENTITY) as client:
         result = await client.call_tool(
-            "create_purchase_order", {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}]}
+            "create_purchase_order",
+            {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}], "deliver_to": "Lab 3.12"},
         )
     assert result.is_error
     assert "will not create a duplicate" in text(result)
 
 
 def test_idempotency_key_depends_on_user_session_and_order():
-    order = {"requested_by": "alice", "deliver_to": None, "lines": [{"sku": "A", "quantity": 1}]}
+    order = {
+        "requested_by": "alice",
+        "deliver_to": "Lab 3.12",
+        "lines": [{"sku": "A", "quantity": 1}],
+    }
     bigger = {**order, "lines": [{"sku": "A", "quantity": 2}]}
     key = idempotency_key("alice", "s1", order)
     assert key == idempotency_key("alice", "s1", dict(reversed(order.items())))  # dict order
@@ -160,7 +169,7 @@ def test_idempotency_key_depends_on_user_session_and_order():
 
 async def test_created_and_duplicate_orders_are_logged(server, caplog):
     caplog.set_level(logging.INFO, logger="supplies_agent")
-    order = {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}]}
+    order = {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}], "deliver_to": "Lab 3.12"}
     async with http_client(server, IDENTITY) as client:
         await client.call_tool("create_purchase_order", order)
         await client.call_tool("create_purchase_order", order)

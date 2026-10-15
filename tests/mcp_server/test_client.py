@@ -80,7 +80,11 @@ async def test_client_errors_are_not_retried(mcp_settings):
 
 
 async def test_write_that_fails_after_commit_is_never_duplicated(api):
-    order = {"requested_by": "alice", "lines": [{"sku": "LC-GLOVE-M", "quantity": 1}]}
+    order = {
+        "requested_by": "alice",
+        "deliver_to": "Lab 3.12",
+        "lines": [{"sku": "LC-GLOVE-M", "quantity": 1}],
+    }
     headers = {"Idempotency-Key": "key-00000001"}
 
     await api.request("PUT", "/admin/faults", json={"server_error_rate": 1})

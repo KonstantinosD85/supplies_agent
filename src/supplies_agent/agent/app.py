@@ -36,7 +36,7 @@ from supplies_agent.agent.session_locks import SessionBusy, SessionLocks
 from supplies_agent.agent.settings import AgentSettings
 from supplies_agent.agent.tools import mcp_tools
 from supplies_agent.logs import configure_logging
-from supplies_agent.memory import sessions
+from supplies_agent.memory import facts, sessions
 from supplies_agent.memory.sessions import SessionAccessDenied
 
 logger = logging.getLogger(__name__)
@@ -112,6 +112,7 @@ def create_app(
     locks = SessionLocks()
 
     sessions.setup(settings.db_path, settings.session_retention_days)
+    facts.setup(settings.db_path)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
@@ -135,7 +136,8 @@ def create_app(
                 )
                 with tool_source(settings, ctx) as tools:
                     model = model_factory(settings)
-                    agent = build_agent(model, tools, ctx, session_manager)
+                    fact_store = facts.store(settings.db_path, ctx.user_id)
+                    agent = build_agent(model, tools, ctx, session_manager, fact_store)
                     pending = approval.pending_approvals(agent)
                     prompt = approval.agent_input(request, pending)
                     start = len(agent.messages)  # history restored from the session

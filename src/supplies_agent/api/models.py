@@ -44,7 +44,7 @@ class PurchaseOrderIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     requested_by: str = Field(min_length=1, description="User id of the requester.")
-    deliver_to: str | None = Field(None, max_length=200)
+    deliver_to: str = Field(min_length=1, max_length=200, description="Delivery location.")
     lines: list[PurchaseOrderLineIn] = Field(min_length=1, max_length=20)
 
 
@@ -62,7 +62,7 @@ class PurchaseOrder(BaseModel):
     supplier_id: str
     supplier_name: str
     requested_by: str
-    deliver_to: str | None
+    deliver_to: str | None  # required on new orders; older ones may lack it
     lines: list[PurchaseOrderLine]
     total_cents: int
     currency: str
