@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 
 import pytest
@@ -191,3 +192,10 @@ def test_server_error_on_write_happens_after_commit_and_retry_is_safe(client):
     assert retry.status_code == 200
     assert retry.headers["Idempotent-Replayed"] == "true"
     assert client.get("/purchase-orders", headers=AUTH).json()["total"] == 1
+
+
+def test_injected_faults_are_logged(client, caplog):
+    caplog.set_level(logging.INFO, logger="supplies_agent")
+    set_faults(client, rate_limit_rate=1)
+    client.get("/stock", headers=AUTH)
+    assert "fault=<rate_limit>, method=<GET>, path=</stock> | fault injected" in caplog.text

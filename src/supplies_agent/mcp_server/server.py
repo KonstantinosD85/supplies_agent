@@ -6,6 +6,7 @@ each error says what went wrong and what to do next.
 
 import hashlib
 import json
+import logging
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -13,8 +14,11 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
+from supplies_agent.logs import configure_logging
 from supplies_agent.mcp_server.client import ApiRejected, ApiUnavailable, SuppliesApi
 from supplies_agent.mcp_server.settings import McpSettings
+
+logger = logging.getLogger(__name__)
 
 USER_HEADER = "x-user-id"
 SESSION_HEADER = "x-session-id"
@@ -278,6 +282,15 @@ def build_server(settings: McpSettings, api: SuppliesApi | None = None) -> MCPSe
 
         po = response.json()
         replayed = response.headers.get("Idempotent-Replayed") == "true"
+        logger.info(
+            "po_number=<%s>, user_id=<%s>, session_id=<%s> | %s",
+            po["po_number"],
+            user_id,
+            session_id,
+            "duplicate order blocked, existing purchase order returned"
+            if replayed
+            else "purchase order created",
+        )
         currency = po["currency"]
         return PurchaseOrderResult(
             po_number=po["po_number"],
@@ -308,6 +321,7 @@ def build_server(settings: McpSettings, api: SuppliesApi | None = None) -> MCPSe
 
 
 def main() -> None:
+    configure_logging()
     settings = McpSettings()
     build_server(settings).run(
         "streamable-http",

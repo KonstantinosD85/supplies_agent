@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-Take-home assignment: build a **Lab Supplies Agent** (Option 3). The full brief is in `docs/SCOPE.md`; read it before making design decisions.
+Take-home assignment: build a **Lab Supplies Agent** (Option 3). The full brief is in `docs/SCOPE.md`; read it before making design decisions. The implementation plan and progress are in `docs/PLAN.md`: check it at the start of a task and tick items off as they're finished.
 
 A scientist asks for reagents or consumables. The agent:
 
@@ -63,7 +63,8 @@ Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on 
 
 ```
 Browser (thin UI: chat, tool-call log, Approve/Decline)
-   │  POST /chat {user_id, session_id, message | interruptResponse}
+   │  POST /invocations {message | interruptResponse}   (AgentCore HTTP contract)
+   │  headers: X-User-Id, X-Amzn-Bedrock-AgentCore-Runtime-Session-Id
    ▼
 agent-service   FastAPI + Strands Agent + approval hook + memory (SQLite) + static UI
    │  MCP (streamable HTTP)
@@ -110,7 +111,7 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
   - faults injected
   - MCP retries, with outcome
   - duplicate POs blocked
-- **Traces:** one trace per `/chat` request across the agent service, the MCP server and the mock. Propagate trace context over the MCP and HTTP hops.
+- **Traces:** one trace per `/invocations` request across the agent service, the MCP server and the mock. Propagate trace context over the MCP and HTTP hops.
 - **Dashboard:** a pre-built Grafana dashboard JSON is provisioned, so `docker compose up` opens to it.
 
 ### Model provider (decided)
@@ -130,6 +131,25 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 - **Multi-turn cases** (propose, then approve or decline) are scripted in the task function, which sends the `interruptResponse` itself.
 - Save experiment results (`experiment.to_file`) so the README can cite the latest run.
 
+### AgentCore Runtime readiness (decided)
+
+The agent service follows the AgentCore Runtime HTTP contract (Option B, custom FastAPI agent), so the same container runs locally and on AgentCore:
+
+- `POST /invocations` (JSON body: `message`, later `interruptResponse`), `GET /ping` → `{"status": "Healthy"}`, port 8080, host `0.0.0.0` in containers, `linux/arm64` images.
+- Identity travels in headers only, never in the body; both are required and validated against the same safe-id pattern:
+  - Session: `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id`. AgentCore sets it from `runtimeSessionId`; locally the client (UI, evals, curl) sets it.
+  - User: `X-User-Id`, the same name the MCP server reads. On AgentCore it must be added to the runtime's request-header allowlist.
+- The local version trusts `X-User-Id`. On AgentCore the user must come from a validated JWT (`customJWTAuthorizer`), not a plain header. Note this in README/AGENTCORE.md.
+- Not `BedrockAgentCoreApp` (Option A): we already have FastAPI and want no extra dependency.
+- AgentCore microVMs are per session with temporary disk, so local SQLite state is a local-only choice; on AgentCore, sessions move to AgentCore Memory (see Memory).
+
+### Logging (decided)
+
+- Standard library `logging`, configured once by `supplies_agent.logs.configure_logging()` at the start of each service's `main()`. `LOG_LEVEL` (default INFO) for our code, `STRANDS_LOG_LEVEL` (default WARNING) for the SDK.
+- Every module uses `logging.getLogger(__name__)`. Messages follow the Strands style: `field=<value>, other=<value> | message`.
+- Log events and ids, not content: no user message text or tool results in logs (traces carry those).
+- Trace/log correlation (`trace_id` on log lines) comes with D8.
+
 ### Optional extra (decided)
 
 - **None for now.** No handoff, streaming or cancellation. Revisit only if the user asks.
@@ -137,7 +157,6 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 ### Still open
 
 - Short-term memory retention period.
-- Package name for the agent HTTP service + web UI (`api/` is now taken by the mock).
 - Other idempotency-key strategies (see the Approval section).
 
 ## Dependencies
@@ -148,9 +167,8 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 
 ```
 src/supplies_agent/
-  agent/        # Strands agent, prompts, approval hook
+  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping) + web UI
   memory/       # SQLite SessionRepository + user facts
-  ???/          # agent HTTP service + static web UI (name TBD)
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics
@@ -167,6 +185,7 @@ The user runs all `uv` commands (see Working rules).
 - Install: `uv sync`
 - Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
 - Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers.
-- Test: `uv run pytest`
+- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations` and `GET /ping` on `127.0.0.1:8080`)
+- Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
 - Eval: _TBD_

@@ -69,8 +69,10 @@ class SuppliesApi:
                         response = await http.request(
                             method, path, params=params, json=json, headers=headers
                         )
-                except (TimeoutError, httpx2.TransportError) as e:
-                    last_error = f"{type(e).__name__} (no response within the attempt timeout)"
+                except TimeoutError:
+                    last_error = "no response within the attempt timeout"
+                except httpx2.TransportError as e:
+                    last_error = f"{type(e).__name__}: {e}"
                 else:
                     if response.status_code not in RETRYABLE_STATUS:
                         if response.is_success:
@@ -83,15 +85,24 @@ class SuppliesApi:
                     delay = retry_after if retry_after is not None else self._backoff(attempt)
                     delay = min(delay, max(0.0, deadline - time.monotonic()))
                     logger.warning(
-                        "%s %s failed (%s), retry %d in %.2fs",
+                        "method=<%s>, path=<%s>, attempt=<%d>, error=<%s>, retry_in=<%.2fs> "
+                        "| supplies API call failed, retrying",
                         method,
                         path,
-                        last_error,
                         attempt,
+                        last_error,
                         delay,
                     )
                     await asyncio.sleep(delay)
 
+        logger.warning(
+            "method=<%s>, path=<%s>, attempts=<%d>, error=<%s> "
+            "| supplies API unavailable, giving up",
+            method,
+            path,
+            attempt,
+            last_error,
+        )
         raise ApiUnavailable(attempt, last_error)
 
     def _backoff(self, attempt: int) -> float:

@@ -1,5 +1,6 @@
 """MCP tools end to end: MCP client -> MCP server -> real supplies API (in-process)."""
 
+import logging
 from contextlib import asynccontextmanager
 
 import httpx2
@@ -155,3 +156,14 @@ def test_idempotency_key_depends_on_user_session_and_order():
     assert key != idempotency_key("alice", "s2", order)
     assert key != idempotency_key("bob", "s1", order)
     assert key != idempotency_key("alice", "s1", bigger)
+
+
+async def test_created_and_duplicate_orders_are_logged(server, caplog):
+    caplog.set_level(logging.INFO, logger="supplies_agent")
+    order = {"lines": [{"sku": "LC-GLOVE-M", "quantity": 1}]}
+    async with http_client(server, IDENTITY) as client:
+        await client.call_tool("create_purchase_order", order)
+        await client.call_tool("create_purchase_order", order)
+    created = "po_number=<PO-000001>, user_id=<alice>, session_id=<session-1> | purchase order"
+    assert created in caplog.text
+    assert "duplicate order blocked" in caplog.text

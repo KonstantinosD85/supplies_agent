@@ -30,7 +30,7 @@ def mcp_settings() -> McpSettings:
 
 @pytest.fixture
 def supplies_app(tmp_path):
-    """The real supplies API (mock) app, served in-process."""
+    """The real supplies API (mock) app, served in-process. Shared by the MCP and agent tests."""
     settings = ApiSettings(key=API_KEY, db_path=str(tmp_path / "api.db"))
     db.init_db(settings.db_path)  # ASGITransport does not run the app's lifespan.
     return create_app(settings)

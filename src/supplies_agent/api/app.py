@@ -22,6 +22,7 @@ from supplies_agent.api.models import (
     StockLevel,
 )
 from supplies_agent.api.settings import ApiSettings, FaultConfig
+from supplies_agent.logs import configure_logging
 
 MAX_PAGE_SIZE = 20
 
@@ -155,5 +156,6 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
 
 
 def main() -> None:
+    configure_logging()
     settings = ApiSettings()
     uvicorn.run(create_app(settings), host=settings.host, port=settings.port)
