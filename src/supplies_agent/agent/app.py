@@ -25,9 +25,12 @@ from supplies_agent.agent.schemas import (
     ToolCall,
     Usage,
 )
+from supplies_agent.agent.session_locks import SessionBusy, SessionLocks
 from supplies_agent.agent.settings import AgentSettings
 from supplies_agent.agent.tools import mcp_tools
 from supplies_agent.logs import configure_logging
+from supplies_agent.memory import sessions
+from supplies_agent.memory.sessions import SessionAccessDenied
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +65,9 @@ def create_app(
 ) -> FastAPI:
     settings = settings or AgentSettings()
     app = FastAPI(title="Lab supplies agent")
+    locks = SessionLocks()
+
+    sessions.setup(settings.db_path, settings.session_retention_days)
 
     @app.get("/ping")
     def ping() -> dict[str, str]:
@@ -74,10 +80,31 @@ def create_app(
     ) -> ChatResponse:
         started = time.perf_counter()
         try:
-            with tool_source(settings, ctx) as tools:
-                agent = build_agent(model_factory(settings), tools, ctx)
-                start = len(agent.messages)
-                result = agent(request.message)
+            with locks.hold(ctx.session_id):
+                # Load the session first: it rejects someone else's session before any other work.
+                session_manager = sessions.session_manager(
+                    settings.db_path, ctx.user_id, ctx.session_id
+                )
+                with tool_source(settings, ctx) as tools:
+                    agent = build_agent(model_factory(settings), tools, ctx, session_manager)
+                    start = len(agent.messages)  # history restored from the session
+                    result = agent(request.message)
+        except SessionAccessDenied as e:
+            logger.warning(
+                "user_id=<%s>, session_id=<%s> | session belongs to another user",
+                ctx.user_id,
+                ctx.session_id,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="This session belongs to another user. Start a new session.",
+            ) from e
+        except SessionBusy as e:
+            raise HTTPException(
+                status_code=409,
+                detail="A previous message in this session is still being processed. "
+                "Wait for it to finish, then retry.",
+            ) from e
         except MCPClientInitializationError as e:
             logger.exception(
                 "user_id=<%s>, session_id=<%s>, mcp_url=<%s> | MCP server unreachable",

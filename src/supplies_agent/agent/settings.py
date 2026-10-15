@@ -18,5 +18,9 @@ class AgentSettings(BaseSettings):
     max_tokens: int = 2048
     anthropic_api_key: SecretStr | None = Field(None, validation_alias="ANTHROPIC_API_KEY")
 
+    # Short-term memory: conversation history per session (SQLite, local only).
+    db_path: str = "data/agent.db"
+    session_retention_days: int = Field(30, ge=1, description="Days of inactivity before purge.")
+
     # MCP server with the supplies tools.
     mcp_url: str = "http://127.0.0.1:8002/mcp"

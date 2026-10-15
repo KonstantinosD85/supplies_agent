@@ -41,14 +41,17 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Verify Strands 1.61 works with mcp 2.1 `streamable_http_client` (main risk; do it first).
 - [x] Tests with a scripted fake model (no LLM calls).
 - Deps: `uv add --group agent "strands-agents[anthropic]" fastapi "uvicorn[standard]"`
-- [ ] Live check with a real model (needs `ANTHROPIC_API_KEY`): stock + catalogue question, and an out-of-scope request.
+- [x] Live check with a real model (needs `ANTHROPIC_API_KEY`): stock + catalogue question, and an out-of-scope request.
 - Done early from D4: `/invocations` already returns `tool_calls`.
 
 ### D2: Session memory
 
-- [ ] SQLite `SessionRepository` plugged into Strands' `RepositorySessionManager`.
-- [ ] Each session stores its owner's `user_id`; requests for another user's session are rejected.
-- [ ] Decide the retention period.
+- [x] SQLite `SessionRepository` (`memory/sessions.py`) plugged into Strands' `RepositorySessionManager`.
+- [x] Each session stores its owner's `user_id`; another user's session is rejected with 403.
+- [x] Retention: 30 days without activity (`AGENT_SESSION_RETENTION_DAYS`), purged on startup.
+- [x] One turn at a time per session (409 while a turn is running).
+- [x] Tests: history across turns and restarts, tool results kept, sessions isolated, purge, concurrency.
+- [ ] Live check with a real model: a follow-up question that needs the previous turn, across a service restart.
 
 ### D3: Approval gate
 

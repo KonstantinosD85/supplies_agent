@@ -37,20 +37,20 @@ def mcp_url(mcp_settings, api):
     thread.join()
 
 
-def chat(mcp_url, model) -> dict:
-    app = create_app(AgentSettings(mcp_url=mcp_url), model_factory=lambda _: model)
+def chat(mcp_url, model, db_path) -> dict:
+    app = create_app(AgentSettings(mcp_url=mcp_url, db_path=db_path), model_factory=lambda _: model)
     response = TestClient(app).post("/invocations", json=REQUEST, headers=HEADERS)
     assert response.status_code == 200, response.text
     return response.json()
 
 
-def test_agent_reads_through_mcp(mcp_url):
+def test_agent_reads_through_mcp(mcp_url, tmp_path):
     model = ScriptedModel(
         tool_call("check_stock", query="PBS"),
         tool_call("search_catalog", query="PBS"),
         "PBS is in stock.",
     )
-    body = chat(mcp_url, model)
+    body = chat(mcp_url, model, str(tmp_path / "agent.db"))
 
     # The write tool stays hidden until the approval gate exists (D3).
     assert model.calls[0]["tools"] == ["check_stock", "get_catalog_item", "search_catalog"]
@@ -60,9 +60,9 @@ def test_agent_reads_through_mcp(mcp_url):
     assert "18.50 EUR" in body["tool_calls"][1]["result"]
 
 
-def test_tool_errors_reach_the_model(mcp_url):
+def test_tool_errors_reach_the_model(mcp_url, tmp_path):
     model = ScriptedModel(tool_call("get_catalog_item", sku="NOPE"), "That SKU does not exist.")
-    body = chat(mcp_url, model)
+    body = chat(mcp_url, model, str(tmp_path / "agent.db"))
 
     [call] = body["tool_calls"]
     assert call["status"] == "error"

@@ -14,7 +14,7 @@ DISABLED_TOOLS = ["create_purchase_order"]
 
 
 @contextmanager
-def mcp_tools(settings: AgentSettings, ctx: RequestContext) -> Generator[list[Any], None, None]:
+def mcp_tools(settings: AgentSettings, ctx: RequestContext) -> Generator[list[Any]]:
     """Open an MCP connection for one request and yield its tools.
 
     One connection per request keeps identity per user: the MCP server reads

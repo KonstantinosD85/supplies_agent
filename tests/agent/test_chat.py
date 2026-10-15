@@ -6,36 +6,17 @@ from contextlib import contextmanager
 import pytest
 from fastapi.testclient import TestClient
 from scripted_model import ScriptedModel, tool_call
-from strands import tool
 from strands.types.exceptions import MCPClientInitializationError
 
 from supplies_agent.agent.app import create_app
 from supplies_agent.agent.prompts import SYSTEM_PROMPT
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
-from supplies_agent.agent.settings import AgentSettings
 
 REQUEST = {"message": "Do we have PBS?"}
 HEADERS = {USER_HEADER: "alice", SESSION_HEADER: "session-1"}
 
 
-@tool
-def check_stock(query: str) -> dict:
-    """Check stock."""
-    return {"matches": [{"sku": "BL-PBS-500", "quantity": 6}]}
-
-
-def client_for(model, tools=(check_stock,), seen: list | None = None) -> TestClient:
-    @contextmanager
-    def tool_source(settings, ctx):
-        if seen is not None:
-            seen.append((ctx.user_id, ctx.session_id))
-        yield list(tools)
-
-    app = create_app(AgentSettings(), model_factory=lambda _: model, tool_source=tool_source)
-    return TestClient(app, headers=HEADERS)
-
-
-def test_chat_runs_tools_and_reports_them():
+def test_chat_runs_tools_and_reports_them(client_for):
     model = ScriptedModel(tool_call("check_stock", query="PBS"), "You have 6 packs of PBS.")
     response = client_for(model).post("/invocations", json=REQUEST)
 
@@ -57,19 +38,19 @@ def test_chat_runs_tools_and_reports_them():
     assert "BL-PBS-500" in str(model.calls[1]["messages"][-1])
 
 
-def test_identity_reaches_the_tool_connection():
+def test_identity_reaches_the_tool_connection(client_for):
     seen: list = []
     client_for(ScriptedModel("Hi."), seen=seen).post("/invocations", json=REQUEST)
     assert seen == [("alice", "session-1")]
 
 
-def test_ping_follows_the_agentcore_contract():
+def test_ping_follows_the_agentcore_contract(client_for):
     response = client_for(ScriptedModel()).get("/ping")
     assert response.status_code == 200
     assert response.json() == {"status": "Healthy"}
 
 
-def test_accepts_agentcore_length_session_ids():
+def test_accepts_agentcore_length_session_ids(client_for):
     seen: list = []
     session = "a" * 40  # AgentCore runtimeSessionId is at least 33 characters
     client_for(ScriptedModel("Hi."), seen=seen).post(
@@ -79,7 +60,7 @@ def test_accepts_agentcore_length_session_ids():
 
 
 @pytest.mark.parametrize("header", [USER_HEADER, SESSION_HEADER])
-def test_identity_headers_are_required(header):
+def test_identity_headers_are_required(client_for, header):
     client = TestClient(client_for(ScriptedModel()).app)  # no default headers
     headers = {k: v for k, v in HEADERS.items() if k != header}
     response = client.post("/invocations", json=REQUEST, headers=headers)
@@ -95,7 +76,7 @@ def test_identity_headers_are_required(header):
         {SESSION_HEADER: "x" * 101},
     ],
 )
-def test_invalid_identity_headers_are_rejected(headers):
+def test_invalid_identity_headers_are_rejected(client_for, headers):
     response = client_for(ScriptedModel()).post("/invocations", json=REQUEST, headers=headers)
     assert response.status_code == 422
 
@@ -108,24 +89,24 @@ def test_invalid_identity_headers_are_rejected(headers):
         {},
     ],
 )
-def test_invalid_bodies_are_rejected(body):
+def test_invalid_bodies_are_rejected(client_for, body):
     response = client_for(ScriptedModel()).post("/invocations", json=body)
     assert response.status_code == 422
 
 
-def test_unreachable_tools_return_503():
+def test_unreachable_tools_return_503(settings):
     @contextmanager
     def broken(settings, ctx):
         raise MCPClientInitializationError("connection refused")
         yield
 
-    app = create_app(AgentSettings(), model_factory=lambda _: ScriptedModel(), tool_source=broken)
+    app = create_app(settings, model_factory=lambda _: ScriptedModel(), tool_source=broken)
     response = TestClient(app, headers=HEADERS).post("/invocations", json=REQUEST)
     assert response.status_code == 503
     assert "try again" in response.json()["detail"]
 
 
-def test_invocation_is_logged_without_message_text(caplog):
+def test_invocation_is_logged_without_message_text(client_for, caplog):
     caplog.set_level(logging.INFO, logger="supplies_agent")
     model = ScriptedModel(tool_call("check_stock", query="PBS"), "You have 6 packs of PBS.")
     client_for(model).post("/invocations", json=REQUEST)

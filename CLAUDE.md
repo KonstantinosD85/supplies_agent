@@ -97,7 +97,7 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 | Layer | Holds | Mechanism | Scope / lifetime |
 |---|---|---|---|
-| Short-term | Conversation history, agent state, pending interrupts | Our own `SessionRepository` (SQLite), plugged into Strands' `RepositorySessionManager` | Per `(user_id, session_id)`; retention N days (TBD) |
+| Short-term | Conversation history, agent state, pending interrupts | Our own `SessionRepository` (SQLite), plugged into Strands' `RepositorySessionManager` | Per `(user_id, session_id)`; purged after 30 days without activity (`AGENT_SESSION_RETENTION_DAYS`) |
 | Long-term | User facts (lab, team, delivery location) | `user_facts` table; loaded into the system prompt and updated by a local `remember_fact` tool | Per `user_id`, until overwritten |
 
 - **Isolation is structural.** Each session row stores its owner's `user_id`, and the service rejects any request for a session owned by someone else. Memory tools take `user_id` from the request context, never from model arguments.
@@ -156,19 +156,23 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 
 ### Still open
 
-- Short-term memory retention period.
 - Other idempotency-key strategies (see the Approval section).
 
 ## Dependencies
 
-One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencies`; each layer's runtime deps go in its own dependency group (`api`, `mcp`, `agent`), plus `dev`. `default-groups = "all"` installs everything locally; each service image installs only its group (`uv sync --locked --no-default-groups --group <layer>`). Groups don't stop cross-layer imports, so keep `api/` free of agent/MCP imports.
+One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencies`; each layer's runtime deps go in its own dependency group (`api`, `mcp`, `agent`), plus `dev`. `default-groups = "all"` installs everything locally; each service image installs only its group (`uv sync --locked --no-default-groups --group <layer>`). Groups don't stop cross-layer imports, so `tests/test_layers.py` enforces the layering:
+
+- `api`, `mcp_server` and `memory` import no other layer; `agent` may import `memory`; every layer may import `logs`.
+- Layers talk over their real interfaces: agent → MCP server over MCP, MCP server → mock over HTTP.
+- `agent` uses only `memory`'s public API (`__all__` in each memory module: `setup`, `session_manager`, `SessionAccessDenied`). `memory` takes plain ids, never the agent's `RequestContext`.
+- A new top-level package needs a rule in `tests/test_layers.py` (a test fails until it has one).
 
 ## Layout (proposed — update as it settles)
 
 ```
 src/supplies_agent/
   agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping) + web UI
-  memory/       # SQLite SessionRepository + user facts
+  memory/       # SQLite SessionRepository (sessions.py) + user facts
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics
@@ -185,7 +189,7 @@ The user runs all `uv` commands (see Working rules).
 - Install: `uv sync`
 - Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
 - Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers.
-- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations` and `GET /ping` on `127.0.0.1:8080`)
+- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations` and `GET /ping` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
 - Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
 - Eval: _TBD_
