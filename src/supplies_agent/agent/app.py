@@ -17,10 +17,12 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from strands import Agent
 from strands.agent import AgentResult
+from strands.hooks import AfterToolCallEvent, HookProvider, HookRegistry
 from strands.models import Model
 from strands.types.agent import AgentInput
 from strands.types.content import Messages
 from strands.types.exceptions import MCPClientInitializationError, ModelThrottledException
+from strands.types.tools import ToolResult
 
 from supplies_agent.agent import approval
 from supplies_agent.agent.factory import build_agent
@@ -54,11 +56,32 @@ INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 AWAITING_APPROVAL_REPLY = "Please approve or decline this purchase order."
 
 
-def extract_tool_calls(messages: Messages, start: int) -> list[ToolCall]:
+class FinishedTools(HookProvider):
+    """Results of the tools that finished in this turn, recorded as each one finishes.
+
+    When the model calls several tools at once and one of them waits for approval, Strands
+    runs the others but keeps their results out of agent.messages until the turn resumes.
+    Recording them here lets the response show them as done instead of waiting.
+    """
+
+    def __init__(self) -> None:
+        self.results: dict[str, ToolResult] = {}
+
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(AfterToolCallEvent, self.record)
+
+    def record(self, event: AfterToolCallEvent) -> None:
+        self.results[event.tool_use["toolUseId"]] = event.result  # a retry overwrites
+
+
+def extract_tool_calls(
+    messages: Messages, start: int, finished: dict[str, ToolResult]
+) -> list[ToolCall]:
     """Tool calls made or finished in this turn (messages[start:]), in call order.
 
-    A call can start in an earlier turn: an approved order's toolUse was proposed in the
-    previous turn and only gets its result now.
+    A call made in this turn may have no result yet: it waits for approval. A call can also
+    start in an earlier turn: an approved order's toolUse was proposed in the previous turn and
+    only runs now. Results finished in an earlier turn are not reported again.
     """
     uses = {
         block["toolUse"]["toolUseId"]: block["toolUse"]
@@ -66,24 +89,29 @@ def extract_tool_calls(messages: Messages, start: int) -> list[ToolCall]:
         for block in message["content"]
         if "toolUse" in block
     }
-    calls: dict[str, ToolCall] = {}
-    for message in messages[start:]:
-        for block in message["content"]:
-            if "toolUse" in block:
-                use = block["toolUse"]
-                calls[use["toolUseId"]] = ToolCall(name=use["name"], input=use["input"])
-            elif "toolResult" in block:
-                result = block["toolResult"]
-                use = uses.get(result["toolUseId"])
-                if use is None:
-                    continue
-                call = calls.setdefault(
-                    result["toolUseId"], ToolCall(name=use["name"], input=use["input"])
-                )
-                call.status = result["status"]
-                text = "\n".join(c["text"] for c in result["content"] if "text" in c)
-                call.result = text[:MAX_RESULT_CHARS]
-    return list(calls.values())
+    turn_blocks = [block for message in messages[start:] for block in message["content"]]
+    turn_uses = [block["toolUse"]["toolUseId"] for block in turn_blocks if "toolUse" in block]
+    turn_results = {
+        block["toolResult"]["toolUseId"]: block["toolResult"]
+        for block in turn_blocks
+        if "toolResult" in block
+    }
+    # Calls resumed from an earlier turn ran first, then the ones the model made in this turn.
+    ids = [i for i in finished if i not in turn_uses] + turn_uses
+
+    calls = []
+    for tool_use_id in ids:
+        use = uses.get(tool_use_id)
+        if use is None:
+            continue
+        call = ToolCall(name=use["name"], input=use["input"])
+        result = finished.get(tool_use_id) or turn_results.get(tool_use_id)
+        if result is not None:
+            call.status = result["status"]
+            text = "\n".join(c["text"] for c in result["content"] if "text" in c)
+            call.result = text[:MAX_RESULT_CHARS]
+        calls.append(call)
+    return calls
 
 
 async def run_turn(agent: Agent, model: Model, prompt: AgentInput) -> AgentResult:
@@ -138,6 +166,8 @@ def create_app(
                     model = model_factory(settings)
                     fact_store = facts.store(settings.db_path, ctx.user_id)
                     agent = build_agent(model, tools, ctx, session_manager, fact_store)
+                    finished = FinishedTools()
+                    agent.hooks.add_hook(finished)
                     pending = approval.pending_approvals(agent)
                     prompt = approval.agent_input(request, pending)
                     start = len(agent.messages)  # history restored from the session
@@ -191,7 +221,7 @@ def create_app(
         response = ChatResponse(
             reply=reply_text(result),
             stop_reason=result.stop_reason,
-            tool_calls=extract_tool_calls(agent.messages, start),
+            tool_calls=extract_tool_calls(agent.messages, start, finished.results),
             pending_approvals=pending,
             usage=Usage(
                 input_tokens=usage.get("inputTokens", 0),

@@ -158,3 +158,22 @@ def test_order_without_a_delivery_location_is_sent_back_not_proposed(client, pla
     assert call["status"] == "error"
     assert MISSING_DELIVERY_MESSAGE in call["result"]
     assert placed == []
+
+
+def test_tool_batched_with_an_order_is_reported_done_and_only_once(client, placed):
+    """remember_fact runs at once, even though Strands parks its result until the order resumes."""
+    model = ScriptedModel(
+        [
+            tool_call("remember_fact", key="delivery_location", value="Lab 3.12"),
+            tool_call("create_purchase_order", lines=LINES, deliver_to="Lab 3.12"),
+        ],
+        "Placed PO-000001.",
+    )
+    body = propose(client, model)
+    calls = [(c["name"], c["status"]) for c in body["tool_calls"]]
+    assert calls == [("remember_fact", "success"), ("create_purchase_order", None)]
+
+    approved = decide(client, model, body, "approve").json()
+    calls = [(c["name"], c["status"]) for c in approved["tool_calls"]]
+    assert calls == [("create_purchase_order", "success")]
+    assert len(placed) == 1

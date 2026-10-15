@@ -91,6 +91,9 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
   a one-off location doesn't replace the saved one.
 - [x] Tests: upsert, key/value validation, isolation, injection in a new session, nothing injected for
   another user, injection not stored in history, missing delivery location at each layer.
+- [x] Fix: a tool batched with an order (e.g. `remember_fact`) showed as waiting for approval. Strands parks
+  finished results until the interrupted batch resumes; a `FinishedTools` hook (`AfterToolCallEvent`)
+  records them so the response shows them done, once.
 - [ ] Live check with a real model: "order gloves" → asked where → "Lab 3.12" → card shows it; new
   session → no question; another user → asked.
 - On AgentCore the store is replaced by AgentCore Memory; `remember_fact` and the manager stay.
