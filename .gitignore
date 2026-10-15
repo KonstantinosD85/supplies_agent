@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Environments
+.venv/
+.env
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# Local data
+*.db
+*.sqlite3
+data/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

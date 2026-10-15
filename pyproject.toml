@@ -1,0 +1,38 @@
+[project]
+name = "supplies-agent"
+version = "0.1.0"
+description = "Lab Supplies Agent: Strands agent + MCP server over a mock inventory and ordering service"
+readme = "README.md"
+authors = [
+    { name = "Ntaikos Kostantinos", email = "daikoskon@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.143.1",
+    "pydantic-settings>=2.16.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+mock-api = "supplies_agent.api.app:main"
+
+[build-system]
+requires = ["uv_build>=0.10.12,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

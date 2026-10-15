@@ -1,0 +1,158 @@
+# CLAUDE.md
+
+Guidance for Claude Code when working in this repository.
+
+## Project
+
+Take-home assignment: build a **Lab Supplies Agent** (Option 3). The full brief is in `docs/SCOPE.md`; read it before making design decisions.
+
+A scientist asks for reagents or consumables. The agent:
+
+1. checks what is in stock,
+2. finds catalogue items from approved suppliers,
+3. proposes a purchase order and waits for the user to approve it,
+4. creates the purchase order only after approval.
+
+The only write is **create purchase order**. Everything else is a read.
+
+## Stack
+
+- **Language:** Python 3.12+
+- **Agent framework:** [Strands Agents](https://strandsagents.com) (`strands-agents`, plus extras such as `[bedrock]`, `[anthropic]`, `[openai]`, `[otel]`)
+- **Tools:** our own MCP server (the `mcp` Python SDK). The agent connects to it through `strands.tools.mcp.MCPClient`.
+- **Model:** Anthropic by default (swappable via config)
+- **Evals:** Strands Evals SDK (`strands-agents-evals`)
+- **Observability:** OpenTelemetry → Grafana `otel-lgtm`
+- **Mock backend:** a small inventory and ordering service on SQLite with a few seeded records
+- **Package and env management:** `uv`
+
+Before writing Strands, MCP or other library code, check the current docs with Context7. Don't rely on memory: these APIs change quickly.
+
+## Required components (from the brief)
+
+| # | Component | Notes |
+|---|-----------|-------|
+| 1 | Agent service | HTTP endpoint that takes `user_id`, `session_id` and `message`. Model provider is swappable via config. |
+| 2 | MCP server | Wraps the mock. Needs a paginated search tool, a read tool and the write tool (create PO). Authenticates to the mock with a key or token. The agent reaches the mock **only** through this server. |
+| 3 | Approval gate | The agent proposes the PO and stops. The user approves or declines in their next message. A pending approval **must survive a service restart**, so persist it rather than keeping it in memory. |
+| 4 | Memory | Session conversation history, plus at least one fact per user that persists across sessions (e.g. their lab or team). Strict per-user isolation. |
+| 5 | Failure handling | A switch on the mock injects rate limits, 5xx errors and slow responses. The agent retries with backoff, gives up after a timeout, tells the user when it can't finish, and **never creates the same PO twice** (use idempotency keys). |
+| 6 | Evals | One command runs all cases. Cover at least: correct tool choice, the approval step respected, an out-of-scope request refused, and a run with failures on. |
+| 7 | Traces | Per request: model calls, tool calls with args and results, latency, tokens and errors (OTel or structured logs). |
+| 8 | Web UI | Thin page that shows tool calls and has approve and decline buttons. Visual design isn't scored. |
+
+Optional (at most one): a handoff to a second agent, streaming, or request cancellation. Don't add one unless asked.
+
+Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on Amazon Bedrock AgentCore).
+
+## Working rules
+
+- **Never run `uv` commands yourself** (`uv add`, `uv sync`, `uv run`, `uv pip`, `uv init`, etc.). If a dependency, environment change or command is needed, stop and brainstorm it with the user first: what's needed, why, and the alternatives. Let the user run it.
+- **Simple and well-engineered beats clever.** The brief says so explicitly. Avoid speculative abstractions and extra features.
+- **Keep the mock small:** SQLite, a handful of seeded suppliers, catalogue items and stock rows.
+- **Tool design matters:** write clear names, tight JSON schemas, descriptions the model can act on, and error messages that tell the model what to do next.
+- **Writes are idempotent:** every create-PO call carries an idempotency key, and the mock deduplicates on it.
+- **Containerised:** it should run with `docker compose up`.
+- **Tests and evals live in the repo** and run with one command each.
+- **README.md and AGENTCORE.md must reflect the author's own thinking.** Don't write their narrative or opinion sections unprompted. Help with structure, facts, diagrams and drafts only when asked, and mark drafts clearly.
+
+## Architecture decisions
+
+### Services (one `docker compose`)
+
+```
+Browser (thin UI: chat, tool-call log, Approve/Decline)
+   │  POST /chat {user_id, session_id, message | interruptResponse}
+   ▼
+agent-service   FastAPI + Strands Agent + approval hook + memory (SQLite) + static UI
+   │  MCP (streamable HTTP)
+   ▼
+mcp-server      search_catalog (paginated), read tools, create_purchase_order
+   │            retries with backoff, overall timeout
+   │  HTTP + API key
+   ▼
+mock-api        FastAPI + SQLite (seeded): suppliers, catalogue, stock, POs
+                dedupes POs by Idempotency-Key; fault switch (429 / 5xx / slow)
+
+otel-lgtm       Grafana + Tempo + Prometheus + Loki; receives OTLP from all three services
+```
+
+The mock is a separate HTTP service so that the MCP server's authentication to it is real.
+
+### Approval: Strands interrupts (decided)
+
+- A `BeforeToolCallEvent` hook on `create_purchase_order` calls `event.interrupt("po-approval", reason={...PO summary...})`.
+- The turn ends with `stop_reason == "interrupt"`. The session manager persists the interrupt state, so the pending approval survives a restart.
+- On the next turn the UI sends `interruptResponse {interruptId, response: "approve" | "decline"}`. The agent is rebuilt from the session store and the hook resumes: approve lets the tool run, decline sets `event.cancel_tool`.
+- **Every PO is approved on its own.** Don't use the docs' "trust" pattern of remembering approval in `agent.state`.
+- **Approval is structured, never inferred by the model.** UI buttons send the `interruptResponse`. A typed "yes" may map to it in code, but we never ask the LLM whether the user approved.
+- **Idempotency key = `session_id` + `toolUseId`**, which is stable across the pause and resume. The hook or the server sets it, never the model. *To verify:* whether the hook can change `tool_use["input"]`, or whether the key must be derived on the MCP side.
+
+### Memory: one `memory` component on SQLite (decided)
+
+The two layers copy AgentCore Memory's short-term and long-term split, so the AgentCore design can swap in `AgentCoreMemorySessionManager`.
+
+| Layer | Holds | Mechanism | Scope / lifetime |
+|---|---|---|---|
+| Short-term | Conversation history, agent state, pending interrupts | Our own `SessionRepository` (SQLite), plugged into Strands' `RepositorySessionManager` | Per `(user_id, session_id)`; retention N days (TBD) |
+| Long-term | User facts (lab, team, delivery location) | `user_facts` table; loaded into the system prompt and updated by a local `remember_fact` tool | Per `user_id`, until overwritten |
+
+- **Isolation is structural.** Each session row stores its owner's `user_id`, and the service rejects any request for a session owned by someone else. Memory tools take `user_id` from the request context, never from model arguments.
+
+### Observability: OpenTelemetry → Grafana `otel-lgtm` (decided)
+
+- Set up with `StrandsTelemetry`: `setup_otlp_exporter()` for traces and `setup_meter(enable_otlp_exporter=True)` for metrics.
+- **Built-in Strands signals:** tokens in and out, agent cycles, model latency, and tool calls by name, status and duration.
+- **Custom counters:**
+  - approvals proposed, approved and declined
+  - faults injected
+  - MCP retries, with outcome
+  - duplicate POs blocked
+- **Traces:** one trace per `/chat` request across the agent service, the MCP server and the mock. Propagate trace context over the MCP and HTTP hops.
+- **Dashboard:** a pre-built Grafana dashboard JSON is provisioned, so `docker compose up` opens to it.
+
+### Model provider (decided)
+
+- **Default: Anthropic**, through Strands' `AnthropicModel` (`strands-agents[anthropic]`) with `ANTHROPIC_API_KEY`.
+- Swappable through config (provider and model ID from env/settings) to Bedrock, OpenAI or Ollama. Keep the provider choice inside one factory function.
+
+### Evals: Strands Evals SDK (decided)
+
+- Package `strands-agents-evals`, imported as `strands_evals`. Build with `Case`, `Experiment` and evaluators; one command runs every experiment.
+- **Deterministic checks first.** Write custom `Evaluator` subclasses that return `EvaluationOutput` for anything that can be checked exactly. Cases cover:
+  - the right tool chosen (trajectory from `tools_use_extractor`)
+  - an interrupt raised before `create_purchase_order`, with no PO in the mock before approval
+  - exactly one PO after approval with faults on
+- **LLM judges only for fuzzy cases.** Use `OutputEvaluator` or `TrajectoryEvaluator` with a rubric for things like how well an out-of-scope request is refused, or whether the failure message is clear.
+- **Judge model:** string model IDs and the default judge are **Bedrock** IDs. Pass a Strands `AnthropicModel` instance as `model=` so evals don't need AWS.
+- **Multi-turn cases** (propose, then approve or decline) are scripted in the task function, which sends the `interruptResponse` itself.
+- Save experiment results (`experiment.to_file`) so the README can cite the latest run.
+
+### Optional extra (decided)
+
+- **None for now.** No handoff, streaming or cancellation. Revisit only if the user asks.
+
+### Still open
+
+- Short-term memory retention period.
+- Nothing is scaffolded yet. No code has been written.
+
+## Layout (proposed — update as it settles)
+
+```
+src/supplies_agent/
+  agent/        # Strands agent, prompts, approval hook
+  memory/       # SQLite SessionRepository + user facts
+  api/          # HTTP service + static web UI
+  mcp_server/   # MCP server exposing the mock as tools
+  mock/         # inventory/ordering mock (SQLite) + fault injection
+  telemetry/    # OTel setup + custom metrics
+evals/          # eval cases + runner
+tests/
+deploy/grafana/ # provisioned dashboard JSON
+docs/SCOPE.md   # assignment brief
+```
+
+## Commands
+
+_TBD: fill in once the project is scaffolded (install, run, test, eval)._
