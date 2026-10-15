@@ -4,6 +4,7 @@ Follows the AgentCore Runtime HTTP contract (POST /invocations, GET /ping, port 
 so the same container runs locally and on AgentCore.
 """
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable
@@ -12,12 +13,16 @@ from typing import Annotated, Any
 
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException
+from strands import Agent
+from strands.agent import AgentResult
 from strands.models import Model
+from strands.types.agent import AgentInput
 from strands.types.content import Messages
 from strands.types.exceptions import MCPClientInitializationError, ModelThrottledException
 
+from supplies_agent.agent import approval
 from supplies_agent.agent.factory import build_agent
-from supplies_agent.agent.model import build_model
+from supplies_agent.agent.model import build_model, close_model
 from supplies_agent.agent.schemas import (
     ChatRequest,
     ChatResponse,
@@ -40,22 +45,55 @@ ToolSource = Callable[[AgentSettings, RequestContext], AbstractContextManager[li
 MAX_RESULT_CHARS = 2000
 
 
-def extract_tool_calls(messages: Messages) -> list[ToolCall]:
-    """Pair each toolUse block with its toolResult, in call order."""
+AWAITING_APPROVAL_REPLY = "Please approve or decline this purchase order."
+
+
+def extract_tool_calls(messages: Messages, start: int) -> list[ToolCall]:
+    """Tool calls made or finished in this turn (messages[start:]), in call order.
+
+    A call can start in an earlier turn: an approved order's toolUse was proposed in the
+    previous turn and only gets its result now.
+    """
+    uses = {
+        block["toolUse"]["toolUseId"]: block["toolUse"]
+        for message in messages
+        for block in message["content"]
+        if "toolUse" in block
+    }
     calls: dict[str, ToolCall] = {}
-    for message in messages:
+    for message in messages[start:]:
         for block in message["content"]:
             if "toolUse" in block:
                 use = block["toolUse"]
                 calls[use["toolUseId"]] = ToolCall(name=use["name"], input=use["input"])
             elif "toolResult" in block:
                 result = block["toolResult"]
-                call = calls.get(result["toolUseId"])
-                if call is not None:
-                    call.status = result["status"]
-                    text = "\n".join(c["text"] for c in result["content"] if "text" in c)
-                    call.result = text[:MAX_RESULT_CHARS]
+                use = uses.get(result["toolUseId"])
+                if use is None:
+                    continue
+                call = calls.setdefault(
+                    result["toolUseId"], ToolCall(name=use["name"], input=use["input"])
+                )
+                call.status = result["status"]
+                text = "\n".join(c["text"] for c in result["content"] if "text" in c)
+                call.result = text[:MAX_RESULT_CHARS]
     return list(calls.values())
+
+
+async def run_turn(agent: Agent, model: Model, prompt: AgentInput) -> AgentResult:
+    """Run one turn and close the model's connections in the same event loop."""
+    try:
+        return await agent.invoke_async(prompt)
+    finally:
+        await close_model(model)
+
+
+def reply_text(result: AgentResult) -> str:
+    """The assistant's text. (str(result) would return the raw interrupts on an interrupt.)"""
+    text = "\n".join(b["text"] for b in result.message["content"] if "text" in b).strip()
+    if not text and result.stop_reason == "interrupt":
+        return AWAITING_APPROVAL_REPLY
+    return text
 
 
 def create_app(
@@ -86,9 +124,13 @@ def create_app(
                     settings.db_path, ctx.user_id, ctx.session_id
                 )
                 with tool_source(settings, ctx) as tools:
-                    agent = build_agent(model_factory(settings), tools, ctx, session_manager)
+                    model = model_factory(settings)
+                    agent = build_agent(model, tools, ctx, session_manager)
+                    pending = approval.pending_approvals(agent)
+                    prompt = approval.agent_input(request, pending)
                     start = len(agent.messages)  # history restored from the session
-                    result = agent(request.message)
+                    result = asyncio.run(run_turn(agent, model, prompt))
+                    pending = approval.record_pending(agent, result, session_manager)
         except SessionAccessDenied as e:
             logger.warning(
                 "user_id=<%s>, session_id=<%s> | session belongs to another user",
@@ -98,6 +140,14 @@ def create_app(
             raise HTTPException(
                 status_code=403,
                 detail="This session belongs to another user. Start a new session.",
+            ) from e
+        except approval.ApprovalConflict as e:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": e.message,
+                    "pending_approvals": [p.model_dump() for p in e.pending],
+                },
             ) from e
         except SessionBusy as e:
             raise HTTPException(
@@ -127,9 +177,10 @@ def create_app(
 
         usage = result.metrics.accumulated_usage
         response = ChatResponse(
-            reply=str(result).strip(),
+            reply=reply_text(result),
             stop_reason=result.stop_reason,
-            tool_calls=extract_tool_calls(agent.messages[start:]),
+            tool_calls=extract_tool_calls(agent.messages, start),
+            pending_approvals=pending,
             usage=Usage(
                 input_tokens=usage.get("inputTokens", 0),
                 output_tokens=usage.get("outputTokens", 0),

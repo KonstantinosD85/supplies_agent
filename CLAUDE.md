@@ -63,7 +63,7 @@ Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on 
 
 ```
 Browser (thin UI: chat, tool-call log, Approve/Decline)
-   │  POST /invocations {message | interruptResponse}   (AgentCore HTTP contract)
+   │  POST /invocations {message} | {approvals: [{interrupt_id, decision}]}   (AgentCore HTTP contract)
    │  headers: X-User-Id, X-Amzn-Bedrock-AgentCore-Runtime-Session-Id
    ▼
 agent-service   FastAPI + Strands Agent + approval hook + memory (SQLite) + static UI
@@ -85,9 +85,10 @@ The mock is a separate HTTP service so that the MCP server's authentication to i
 
 - A `BeforeToolCallEvent` hook on `create_purchase_order` calls `event.interrupt("po-approval", reason={...PO summary...})`.
 - The turn ends with `stop_reason == "interrupt"`. The session manager persists the interrupt state, so the pending approval survives a restart.
-- On the next turn the UI sends `interruptResponse {interruptId, response: "approve" | "decline"}`. The agent is rebuilt from the session store and the hook resumes: approve lets the tool run, decline sets `event.cancel_tool`.
+- On the next turn the UI sends `{"approvals": [{"interrupt_id", "decision": "approve" | "decline"}]}`; the service turns it into Strands `interruptResponse` blocks. The agent is rebuilt from the session store and the hook resumes: approve lets the tool run, decline sets `event.cancel_tool`.
+- Pending approvals are mirrored in `agent.state["pending_approvals"]` (public, session-persisted) so a request is checked before the agent runs: a message while an order waits, or a decision when nothing waits or for the wrong ids, gets 409 with the pending list. The response carries `pending_approvals`.
 - **Every PO is approved on its own.** Don't use the docs' "trust" pattern of remembering approval in `agent.state`.
-- **Approval is structured, never inferred by the model.** UI buttons send the `interruptResponse`. A typed "yes" may map to it in code, but we never ask the LLM whether the user approved.
+- **Approval is structured, never inferred by the model.** UI buttons send the decision. A typed "yes" is refused with 409 (not mapped, for now); we never ask the LLM whether the user approved.
 - **Idempotency key = hash(`user_id`, `session_id`, normalized order)**, derived by the MCP server, never by the model. `user_id` and `session_id` reach the MCP server as connection headers set by the agent service. Why not `session_id` + `toolUseId`: if a write commits but the client sees a 503 and gives up, the user's next attempt is a new tool call with a new `toolUseId`, so a new key and a duplicate PO. Trade-off: an identical order placed twice in one session returns the existing PO. (Verified: a Strands `BeforeToolCallEvent` hook *can* modify `tool_use["input"]`, so hook-injected keys remain an option.)
   - **TODO, explore later:** other key strategies, e.g. a key tied to the approval/interrupt id, reconciling by looking up the PO after a give-up, or letting the user explicitly re-order the same items in one session.
 
@@ -118,6 +119,7 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 - **Default: Anthropic**, through Strands' `AnthropicModel` (`strands-agents[anthropic]`) with `ANTHROPIC_API_KEY`.
 - Swappable through config (provider and model ID from env/settings) to Bedrock, OpenAI or Ollama. Keep the provider choice inside one factory function.
+- A model is built per request and each turn runs in its own event loop (`asyncio.run(agent.invoke_async(...))`). `close_model()` must close the provider's async HTTP client in that same loop; otherwise garbage collection closes it on another loop and logs "Event loop is closed". A new async provider needs a branch there.
 
 ### Evals: Strands Evals SDK (decided)
 
@@ -128,14 +130,14 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
   - exactly one PO after approval with faults on
 - **LLM judges only for fuzzy cases.** Use `OutputEvaluator` or `TrajectoryEvaluator` with a rubric for things like how well an out-of-scope request is refused, or whether the failure message is clear.
 - **Judge model:** string model IDs and the default judge are **Bedrock** IDs. Pass a Strands `AnthropicModel` instance as `model=` so evals don't need AWS.
-- **Multi-turn cases** (propose, then approve or decline) are scripted in the task function, which sends the `interruptResponse` itself.
+- **Multi-turn cases** (propose, then approve or decline) are scripted in the task function, which sends the `approvals` decision itself.
 - Save experiment results (`experiment.to_file`) so the README can cite the latest run.
 
 ### AgentCore Runtime readiness (decided)
 
 The agent service follows the AgentCore Runtime HTTP contract (Option B, custom FastAPI agent), so the same container runs locally and on AgentCore:
 
-- `POST /invocations` (JSON body: `message`, later `interruptResponse`), `GET /ping` → `{"status": "Healthy"}`, port 8080, host `0.0.0.0` in containers, `linux/arm64` images.
+- `POST /invocations` (JSON body: `message`, or `approvals` to decide on pending purchase orders), `GET /ping` → `{"status": "Healthy"}`, port 8080, host `0.0.0.0` in containers, `linux/arm64` images.
 - Identity travels in headers only, never in the body; both are required and validated against the same safe-id pattern:
   - Session: `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id`. AgentCore sets it from `runtimeSessionId`; locally the client (UI, evals, curl) sets it.
   - User: `X-User-Id`, the same name the MCP server reads. On AgentCore it must be added to the runtime's request-header allowlist.

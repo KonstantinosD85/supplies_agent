@@ -55,11 +55,17 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 
 ### D3: Approval gate
 
-- [ ] `BeforeToolCallEvent` hook → `event.interrupt("po-approval", reason={PO summary})`.
-- [ ] `/invocations` accepts `interruptResponse` and returns the pending approval.
-- [ ] Approve runs the tool; decline sets `cancel_tool`.
-- [ ] Tests: interrupt before any PO exists; survives a restart; decline leaves no PO;
-  faults on + approve gives exactly one PO.
+- [x] `ApprovalHook` (`agent/approval.py`): `BeforeToolCallEvent` on `create_purchase_order` →
+  `event.interrupt("po-approval", reason={lines, deliver_to})`.
+- [x] `/invocations` takes `{"approvals": [{interrupt_id, decision}]}` and returns `pending_approvals`.
+- [x] Approve runs the tool; decline sets `cancel_tool` with a message telling the model why.
+- [x] Pending approvals mirrored in `agent.state`: a message while an order waits, or a decision
+  when nothing waits, gets 409 (with the pending list so the UI can recover).
+- [x] `create_purchase_order` exposed to the model; prompt updated (no text confirmation first).
+- [x] Tests: interrupt before any PO exists; survives a restart; decline leaves no PO;
+  faults on + approve gives exactly one PO; each order needs its own approval.
+- [x] Live check with a real model: propose → approve, propose → decline, approve with faults on.
+- [x] Fix: close the Anthropic client in the turn's own event loop ("Event loop is closed" on GC).
 - Needs D2: the interrupt state is stored in the session.
 
 ### D4: Web UI

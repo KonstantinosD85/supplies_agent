@@ -6,6 +6,7 @@ from strands import Agent
 from strands.models import Model
 from strands.session import SessionManager
 
+from supplies_agent.agent.approval import ApprovalHook
 from supplies_agent.agent.prompts import SYSTEM_PROMPT
 from supplies_agent.agent.schemas import RequestContext
 
@@ -24,4 +25,5 @@ def build_agent(
         callback_handler=None,  # no console printing; the HTTP response carries the result
         trace_attributes={"user.id": ctx.user_id, "session.id": ctx.session_id},
         session_manager=session_manager,
+        hooks=[ApprovalHook()],  # create_purchase_order only runs after the user approves
     )

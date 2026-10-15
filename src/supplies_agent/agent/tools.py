@@ -9,9 +9,6 @@ from strands.tools.mcp import MCPClient
 from supplies_agent.agent.schemas import RequestContext
 from supplies_agent.agent.settings import AgentSettings
 
-# Not exposed until the approval gate exists (docs/PLAN.md, D3).
-DISABLED_TOOLS = ["create_purchase_order"]
-
 
 @contextmanager
 def mcp_tools(settings: AgentSettings, ctx: RequestContext) -> Generator[list[Any]]:
@@ -23,7 +20,6 @@ def mcp_tools(settings: AgentSettings, ctx: RequestContext) -> Generator[list[An
     client = MCPClient(
         url=settings.mcp_url,
         headers={"X-User-Id": ctx.user_id, "X-Session-Id": ctx.session_id},
-        tool_filters={"rejected": DISABLED_TOOLS},
     )
     with client:
         yield client.list_tools_sync()
