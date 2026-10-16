@@ -150,8 +150,15 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Smoke check (scratch ports, scripted model): metrics in Prometheus, traces in Tempo (TraceQL by
   `user.id`), every panel query returns data through Grafana.
 - [x] Live check: `docker compose up --build`, a real conversation, the dashboard and one trace in Grafana.
+- [x] Structured logs: fields in `extra` (all services), printed as `field=<value>` on the console
+  (`logs.ConsoleFormatter`); the agent exports them to Loki over OTLP (`LoggingHandler` from
+  `opentelemetry-instrumentation-logging`), searchable by field, linked to traces both ways.
+  Dashboard: logs panel with `user_id` and `level` filters. Log-format tests removed (decided).
+- [x] Smoke check (scratch ports): Loki queries by `user_id`, `stop_reason` and level; the trace's logs
+  found from its trace id; dashboard variables provisioned.
+- [ ] Live check: `docker compose up --build`, a conversation, the logs panel and a log → trace link.
 - Later: export from the MCP server and the mock (their spans already join the trace once they have
-  an SDK), counters for MCP retries, duplicate POs blocked and faults injected; logs to Loki.
+  an SDK), counters for MCP retries, duplicate POs blocked and faults injected.
 
 ### D9: Docs support
 

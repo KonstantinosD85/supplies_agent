@@ -27,6 +27,7 @@ build-backend = "uv_build"
 [dependency-groups]
 agent = [
     "fastapi>=0.143.1",
+    "opentelemetry-instrumentation-logging>=0.66b1",
     "strands-agents[anthropic,otel]>=1.61.0",
     "uvicorn[standard]>=0.54.0",
 ]

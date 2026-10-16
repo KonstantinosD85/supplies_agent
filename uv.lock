@@ -1352,6 +1352,20 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-instrumentation-logging"
+version = "0.66b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/28/ca/0fcf525f238f4ab9df3a6d0423fb057085ea39a3e79ac912fef3d5fa16b8/opentelemetry_instrumentation_logging-0.66b1.tar.gz", hash = "sha256:2250240ecb1fce36939f64eafd988832338684564fb4c7b401c9b9af0ee11d46", size = 20353, upload-time = "2026-10-06T17:36:29.546Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/7b/76bea1e80787848a9ac9882a598cbf1e761f16cebdb399d0e675221e34a0/opentelemetry_instrumentation_logging-0.66b1-py3-none-any.whl", hash = "sha256:f13761110c52eecae9d7debedb0f88b46acc248c20437e97c2a5b3a2b4f96a02", size = 15928, upload-time = "2026-10-06T17:35:39.915Z" },
+]
+
+[[package]]
 name = "opentelemetry-instrumentation-threading"
 version = "0.66b1"
 source = { registry = "https://pypi.org/simple" }
@@ -2281,6 +2295,7 @@ dependencies = [
 [package.dev-dependencies]
 agent = [
     { name = "fastapi" },
+    { name = "opentelemetry-instrumentation-logging" },
     { name = "strands-agents", extra = ["anthropic", "otel"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -2311,6 +2326,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 agent = [
     { name = "fastapi", specifier = ">=0.143.1" },
+    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.66b1" },
     { name = "strands-agents", extras = ["anthropic", "otel"], specifier = ">=1.61.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]

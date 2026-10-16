@@ -85,23 +85,20 @@ class SuppliesApi:
                     delay = retry_after if retry_after is not None else self._backoff(attempt)
                     delay = min(delay, max(0.0, deadline - time.monotonic()))
                     logger.warning(
-                        "method=<%s>, path=<%s>, attempt=<%d>, error=<%s>, retry_in=<%.2fs> "
-                        "| supplies API call failed, retrying",
-                        method,
-                        path,
-                        attempt,
-                        last_error,
-                        delay,
+                        "supplies API call failed, retrying",
+                        extra={
+                            "method": method,
+                            "path": path,
+                            "attempt": attempt,
+                            "error": last_error,
+                            "retry_in_s": round(delay, 2),
+                        },
                     )
                     await asyncio.sleep(delay)
 
         logger.warning(
-            "method=<%s>, path=<%s>, attempts=<%d>, error=<%s> "
-            "| supplies API unavailable, giving up",
-            method,
-            path,
-            attempt,
-            last_error,
+            "supplies API unavailable, giving up",
+            extra={"method": method, "path": path, "attempts": attempt, "error": last_error},
         )
         raise ApiUnavailable(attempt, last_error)
 

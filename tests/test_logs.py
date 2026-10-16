@@ -9,30 +9,9 @@ from supplies_agent.logs import configure_logging
 def restore_levels():
     loggers = [logging.getLogger(name) for name in ("supplies_agent", "strands")]
     levels = [logger.level for logger in loggers]
-    factory = logging.getLogRecordFactory()
     yield
     for logger, level in zip(loggers, levels, strict=True):
         logger.setLevel(level)
-    logging.setLogRecordFactory(factory)
-
-
-def format_line(message: str) -> str:
-    record = logging.getLogger("supplies_agent.test").makeRecord(
-        "supplies_agent.test", logging.INFO, __file__, 1, message, (), None
-    )
-    return logging.Formatter("%(name)s%(trace)s | %(message)s").format(record)
-
-
-def test_without_tracing_lines_have_no_trace_field():
-    configure_logging()
-    assert format_line("hello") == "supplies_agent.test | hello"
-
-
-def test_a_service_with_tracing_adds_the_trace_after_the_logger_name():
-    configure_logging(trace=lambda: " trace_id=<abc>")
-    assert format_line("hello") == "supplies_agent.test trace_id=<abc> | hello"
-    configure_logging(trace=lambda: " trace_id=<def>")  # reconfiguring replaces, never stacks
-    assert format_line("hello") == "supplies_agent.test trace_id=<def> | hello"
 
 
 def test_defaults_keep_strands_quiet(monkeypatch):

@@ -289,13 +289,10 @@ def build_server(settings: McpSettings, api: SuppliesApi | None = None) -> MCPSe
         po = response.json()
         replayed = response.headers.get("Idempotent-Replayed") == "true"
         logger.info(
-            "po_number=<%s>, user_id=<%s>, session_id=<%s> | %s",
-            po["po_number"],
-            user_id,
-            session_id,
             "duplicate order blocked, existing purchase order returned"
             if replayed
             else "purchase order created",
+            extra={"po_number": po["po_number"], "user_id": user_id, "session_id": session_id},
         )
         currency = po["currency"]
         return PurchaseOrderResult(

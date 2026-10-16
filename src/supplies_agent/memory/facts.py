@@ -96,7 +96,7 @@ class SqliteFactStore:
                 " DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
                 (self.user_id, key, value, datetime.now(UTC).isoformat()),
             )
-        logger.info("user_id=<%s>, key=<%s> | user fact saved", self.user_id, key)
+        logger.info("user fact saved", extra={"user_id": self.user_id, "key": key})
 
 
 def store(db_path: str, user_id: str) -> SqliteFactStore:

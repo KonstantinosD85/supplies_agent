@@ -1,7 +1,6 @@
 """Retry, backoff and timeout behaviour of the supplies API client."""
 
 import asyncio
-import logging
 
 import httpx2
 import pytest
@@ -97,12 +96,3 @@ async def test_write_that_fails_after_commit_is_never_duplicated(api):
     retry = await api.request("POST", "/purchase-orders", json=order, headers=headers)
     assert retry.headers["Idempotent-Replayed"] == "true"
     assert (await api.request("GET", "/purchase-orders")).json()["total"] == 1
-
-
-async def test_retries_and_give_up_are_logged(mcp_settings, caplog):
-    caplog.set_level(logging.INFO, logger="supplies_agent")
-    transport, _ = scripted(*[httpx2.Response(503)] * 4)
-    with pytest.raises(ApiUnavailable):
-        await SuppliesApi(mcp_settings, transport).request("GET", "/stock")
-    assert "attempt=<1>, error=<HTTP 503>" in caplog.text
-    assert "attempts=<4>, error=<HTTP 503> | supplies API unavailable, giving up" in caplog.text

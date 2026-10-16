@@ -58,9 +58,8 @@ class ApprovalHook(HookProvider):
             reason={"lines": order.get("lines", []), "deliver_to": order["deliver_to"]},
         )
         logger.info(
-            "tool_use_id=<%s>, decision=<%s> | purchase order approval decided",
-            event.tool_use["toolUseId"],
-            decision,
+            "purchase order approval decided",
+            extra={"tool_use_id": event.tool_use["toolUseId"], "decision": decision},
         )
         APPROVALS.add(1, {"outcome": "approved" if decision == "approve" else "declined"})
         if decision != "approve":
@@ -124,7 +123,7 @@ def record_pending(
     session_manager.sync_agent(agent)  # the turn has ended, so persist the change ourselves
     for p in pending:
         logger.info(
-            "interrupt_id=<%s> | purchase order proposed, waiting for approval", p.interrupt_id
+            "purchase order proposed, waiting for approval", extra={"interrupt_id": p.interrupt_id}
         )
         APPROVALS.add(1, {"outcome": "proposed"})
     return pending

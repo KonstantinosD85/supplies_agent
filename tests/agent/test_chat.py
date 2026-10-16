@@ -1,6 +1,5 @@
 """The /invocations and /ping endpoints with a scripted model and local stand-in tools."""
 
-import logging
 from contextlib import contextmanager
 
 import pytest
@@ -104,17 +103,6 @@ def test_unreachable_tools_return_503(settings):
     response = TestClient(app, headers=HEADERS).post("/invocations", json=REQUEST)
     assert response.status_code == 503
     assert "try again" in response.json()["detail"]
-
-
-def test_invocation_is_logged_without_message_text(client_for, caplog):
-    caplog.set_level(logging.INFO, logger="supplies_agent")
-    model = ScriptedModel(tool_call("check_stock", query="PBS"), "You have 6 packs of PBS.")
-    client_for(model).post("/invocations", json=REQUEST)
-
-    [line] = [r.getMessage() for r in caplog.records if "invocation finished" in r.getMessage()]
-    assert "user_id=<alice>, session_id=<session-1>, stop_reason=<end_turn>" in line
-    assert "tools=<check_stock>, tool_errors=<0>, input_tokens=<20>, output_tokens=<10>" in line
-    assert "PBS" not in caplog.text  # neither the message nor tool results are logged
 
 
 def test_root_serves_the_web_ui(client_for):

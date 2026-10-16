@@ -20,10 +20,8 @@ _EXEMPT_PREFIXES = ("/health", "/admin", "/docs", "/openapi.json")
 
 def _log(kind: str, request: Request) -> None:
     logger.info(
-        "fault=<%s>, method=<%s>, path=<%s> | fault injected",
-        kind,
-        request.method,
-        request.url.path,
+        "fault injected",
+        extra={"fault": kind, "method": request.method, "path": request.url.path},
     )
 
 

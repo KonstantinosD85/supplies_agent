@@ -11,7 +11,33 @@
     "from": "now-1h",
     "to": "now"
   },
-  "description": "Agent service: requests, tokens, tool calls (Prometheus) and recent traces (Tempo). Stat panels are totals of the agent instances seen in the time range (last counter value per instance, so restarts add up).",
+  "description": "Agent service: requests, tokens, tool calls (Prometheus) and recent traces (Tempo), logs (Loki). Stat panels are totals of the agent instances seen in the time range (last counter value per instance, so restarts add up).",
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "user_id",
+        "label": "User id",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      },
+      {
+        "type": "custom",
+        "name": "level",
+        "label": "Level",
+        "query": "info,warn,error",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
   "panels": [
     {
       "type": "stat",
@@ -634,6 +660,39 @@
         }
       ],
       "id": 15
+    },
+    {
+      "type": "logs",
+      "title": "Agent logs (filter by user id and level above)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 46
+      },
+      "description": "Agent log lines with their fields (structured metadata). Open a line for its fields and a link to its trace.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service_name=\"supplies-agent\"} | user_id=~\"${user_id:regex}.*\" | detected_level=~\"$level\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      },
+      "id": 16
     }
   ]
 }

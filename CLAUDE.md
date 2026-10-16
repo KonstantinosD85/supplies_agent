@@ -109,14 +109,15 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 **Agent service only, for now** (the MCP server and the mock export nothing yet).
 
-- `agent/telemetry.py` `setup()`: `StrandsTelemetry` with `setup_baggage_processor`, `setup_otlp_exporter()` and `setup_meter(enable_otlp_exporter=True)` (deps: `strands-agents[anthropic,otel]`). On only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (compose sets it), so tests, evals and plain local runs export nothing.
+- `agent/telemetry.py` `setup()`: `StrandsTelemetry` with `setup_baggage_processor`, `setup_otlp_exporter()` and `setup_meter(enable_otlp_exporter=True)`, plus a `LoggerProvider` with an OTLP log exporter and the `LoggingHandler` from `opentelemetry-instrumentation-logging` on the root logger (the SDK's own `LoggingHandler` is deprecated) (deps: `strands-agents[anthropic,otel]`, `opentelemetry-instrumentation-logging`). On only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (compose sets it), so tests, evals and plain local runs export nothing.
 - **Traces:** one trace per `/invocations`. FastAPI's native telemetry makes the root span (`POST /invocations`, HTTP status) and HTTP metrics; configured with `FASTAPI_TELEMETRY` (no `/ping` spans, no per-operation spans). Strands adds agent, cycle, model (`chat`) and tool spans with tokens, args and results.
 - **Caller in baggage:** `caller_context()` sets `user.id` and `session.id` on the root span and in baggage; a `BaggageSpanProcessor` (those two keys only) stamps them on every span. Baggage also travels to the MCP server in `_meta` (its `tools/call` span already joins the trace in-process tests). Ids only in baggage, never secrets or content.
 - **Metrics:** built-in Strands (tokens, cycles, model latency, tool calls/errors/duration) and FastAPI (`http.server.request.duration`). Prometheus names, e.g. `strands_tool_call_count_Count_total`, `strands_event_loop_input_tokens_token_sum`, `http_server_request_duration_seconds_bucket`. Quirks: Strands labels tool metrics with `tool_use_id` (a series per call; aggregate by `tool_name`), counts a tool call interrupted for approval as a tool error, and its seconds histograms use default buckets (0, 5, 10… s), so use model latency (ms) for latency panels.
-- **Dashboard:** `deploy/grafana/supplies-agent.json` (Grafana home in `otel-lgtm`, datasource uids `prometheus`, `tempo`), provisioned by `deploy/grafana/dashboards.yaml`. Stat panels use `sum(last_over_time(...[$__range]))` (counter totals per instance, robust to restarts and new series), graphs use `rate()`. A table lists recent traces via TraceQL.
+- **Dashboard:** `deploy/grafana/supplies-agent.json` (Grafana home in `otel-lgtm`, datasource uids `prometheus`, `tempo`, `loki`), provisioned by `deploy/grafana/dashboards.yaml`. Stat panels use `sum(last_over_time(...[$__range]))` (counter totals per instance, robust to restarts and new series), graphs use `rate()`. A table lists recent traces via TraceQL; a logs panel (Loki) filters by the `user_id` and `level` variables.
 - **Custom counter:** `supplies.approvals` (`agent/approval.py`, `outcome` = proposed / approved / declined), created from the global meter, so it is a no-op until `setup()` runs.
-- **Log correlation:** `configure_logging(trace=...)` installs a log-record factory that fills `%(trace)s` after the logger name; the agent passes `telemetry.log_trace` (` trace_id=<32 hex>` inside a request, empty otherwise). `logs.py` stays free of OpenTelemetry (the mock image doesn't have it).
-- **Later:** the MCP server and the mock (counters for faults injected, MCP retries with outcome, duplicate POs blocked) and logs to Loki.
+- **Logs → Loki:** exported records keep their `extra` fields as attributes, which Loki stores as structured metadata, so they are searchable without parsing: `{service_name="supplies-agent"} | user_id="alice" | stop_reason="interrupt"`. Each record carries `trace_id`/`span_id`: otel-lgtm's Loki datasource links a line to its trace and Tempo's "logs for this span" finds the lines. Only what reaches the root logger is exported (our INFO+, Strands WARNING+; uvicorn's own loggers don't propagate).
+- **Console correlation:** `configure_logging(trace=...)` gives the console formatter a callable for the text after the logger name; the agent passes `telemetry.log_trace` (` trace_id=<32 hex>` inside a request, empty otherwise). `logs.py` stays free of OpenTelemetry (the mock image doesn't have it).
+- **Later:** the MCP server and the mock: traces, logs (their lines are already structured) and counters for faults injected, MCP retries with outcome, duplicate POs blocked.
 
 ### Model provider (decided)
 
@@ -148,9 +149,10 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 ### Logging (decided)
 
 - Standard library `logging`, configured once by `supplies_agent.logs.configure_logging()` at the start of each service's `main()`. `LOG_LEVEL` (default INFO) for our code, `STRANDS_LOG_LEVEL` (default WARNING) for the SDK.
-- Every module uses `logging.getLogger(__name__)`. Messages follow the Strands style: `field=<value>, other=<value> | message`.
+- Every module uses `logging.getLogger(__name__)`. **Structured:** the message names the event, fields go in `extra` (`logger.info("invocation finished", extra={"user_id": ..., "stop_reason": ...})`), never formatted into the message. `logs.ConsoleFormatter` prints them in the Strands style, `... | field=<value>, other=<value> | message`; the OTLP handler exports them as attributes.
 - Log events and ids, not content: no user message text or tool results in logs (traces carry those).
-- The agent's lines carry ` trace_id=<...>` after the logger name (see Observability).
+- The agent's lines carry ` trace_id=<...>` after the logger name and are exported to Loki (see Observability).
+- Log output isn't unit-tested (decided: not worth the tests); check it in the smoke run.
 
 ### Optional extra (decided)
 

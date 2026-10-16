@@ -6,6 +6,9 @@ results) and its metrics. We add the caller to the root span and put it in bagga
 span of the request carries user.id and session.id. The baggage also travels with
 the MCP calls (W3C baggage header), ready for when the MCP server and the mock export traces.
 
+Logs go over OTLP too (to Loki): each record keeps its `extra` fields as attributes and gets
+the current trace and span ids, so a log line opens its trace and a trace lists its logs.
+
 Export is on only when OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. in docker compose), so tests,
 evals and plain local runs send nothing.
 """
@@ -16,6 +19,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from opentelemetry import baggage, context, trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.trace import Span
 from strands.telemetry import StrandsTelemetry
 
@@ -33,13 +41,13 @@ def baggage_key_allowed(key: str) -> bool:
 
 
 def setup() -> None:
-    """Export traces and metrics over OTLP/HTTP, if an endpoint is configured.
+    """Export traces, metrics and logs over OTLP/HTTP, if an endpoint is configured.
 
     Endpoint, service name and headers come from the standard OTEL_* env vars.
     """
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not endpoint:
-        logger.info("OTEL_EXPORTER_OTLP_ENDPOINT not set | telemetry export off")
+        logger.info("telemetry export off: OTEL_EXPORTER_OTLP_ENDPOINT not set")
         return
     (
         StrandsTelemetry()
@@ -47,7 +55,13 @@ def setup() -> None:
         .setup_otlp_exporter()
         .setup_meter(enable_otlp_exporter=True)
     )
-    logger.info("endpoint=<%s> | telemetry export on", endpoint)
+    # StrandsTelemetry covers traces and metrics only. Logs: everything that reaches the root
+    # logger (our INFO and up, the SDK's WARNING and up) is exported as well as printed.
+    logs = LoggerProvider()
+    logs.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+    set_logger_provider(logs)
+    logging.getLogger().addHandler(LoggingHandler(logger_provider=logs))
+    logger.info("telemetry export on", extra={"endpoint": endpoint})
 
 
 def log_trace() -> str:

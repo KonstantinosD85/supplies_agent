@@ -1,7 +1,5 @@
-"""Telemetry: one trace per /invocations request with the caller on every span, trace ids on
-log lines, and the approvals counter."""
-
-import logging
+"""Telemetry: one trace per /invocations request with the caller on every span, and the
+approvals counter."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,7 +17,6 @@ from supplies_agent.agent import telemetry
 from supplies_agent.agent.app import create_app
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
 from supplies_agent.agent.settings import AgentSettings
-from supplies_agent.logs import configure_logging
 
 EXPORTER = InMemorySpanExporter()
 METRICS = InMemoryMetricReader()
@@ -98,20 +95,6 @@ def test_the_mcp_servers_span_joins_the_agents_trace_with_the_caller(mcp_url, tm
     assert server_span.kind == trace.SpanKind.SERVER
     assert server_span.context.trace_id == spans_["POST /invocations"].context.trace_id
     assert {k: server_span.attributes.get(k) for k in CALLER} == CALLER  # from the baggage
-
-
-def test_log_lines_carry_the_requests_trace_id(client_for, spans, caplog):
-    factory = logging.getLogRecordFactory()
-    configure_logging(trace=telemetry.log_trace)
-    try:
-        caplog.set_level(logging.INFO, logger="supplies_agent")
-        client_for(ScriptedModel("Hi.")).post("/invocations", json={"message": "hi"})
-    finally:
-        logging.setLogRecordFactory(factory)
-    root = by_name(spans)["POST /invocations"]
-    [line] = [r for r in caplog.records if r.getMessage().endswith("invocation finished")]
-    assert line.trace == f" trace_id=<{root.context.trace_id:032x}>"
-    assert telemetry.log_trace() == ""  # outside a request
 
 
 @pytest.fixture

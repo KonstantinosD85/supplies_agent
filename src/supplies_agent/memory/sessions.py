@@ -73,9 +73,8 @@ def setup(db_path: str, retention_days: int) -> int:
         conn.executescript(SCHEMA)
         purged = conn.execute("DELETE FROM sessions WHERE updated_at < ?", (cutoff,)).rowcount
     logger.info(
-        "purged=<%d>, retention_days=<%d> | session storage ready, expired sessions removed",
-        purged,
-        retention_days,
+        "session storage ready, expired sessions removed",
+        extra={"purged": purged, "retention_days": retention_days},
     )
     return purged
 

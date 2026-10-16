@@ -130,6 +130,11 @@ def reply_text(result: AgentResult) -> str:
     return text
 
 
+def caller(ctx: RequestContext) -> dict[str, str]:
+    """Log fields naming the caller."""
+    return {"user_id": ctx.user_id, "session_id": ctx.session_id}
+
+
 def create_app(
     settings: AgentSettings | None = None,
     model_factory: ModelFactory = build_model,
@@ -187,11 +192,7 @@ def create_app(
                     result = asyncio.run(run_turn(agent, model, prompt))
                     pending = approval.record_pending(agent, result, session_manager)
         except SessionAccessDenied as e:
-            logger.warning(
-                "user_id=<%s>, session_id=<%s> | session belongs to another user",
-                ctx.user_id,
-                ctx.session_id,
-            )
+            logger.warning("session belongs to another user", extra=caller(ctx))
             raise HTTPException(
                 status_code=403,
                 detail="This session belongs to another user. Start a new session.",
@@ -212,19 +213,14 @@ def create_app(
             ) from e
         except MCPClientInitializationError as e:
             logger.exception(
-                "user_id=<%s>, session_id=<%s>, mcp_url=<%s> | MCP server unreachable",
-                ctx.user_id,
-                ctx.session_id,
-                settings.mcp_url,
+                "MCP server unreachable", extra={**caller(ctx), "mcp_url": settings.mcp_url}
             )
             raise HTTPException(
                 status_code=503,
                 detail="The supplies tools are unavailable right now. Please try again shortly.",
             ) from e
         except ModelThrottledException as e:
-            logger.warning(
-                "user_id=<%s>, session_id=<%s> | model throttled", ctx.user_id, ctx.session_id
-            )
+            logger.warning("model throttled", extra=caller(ctx))
             raise HTTPException(
                 status_code=503,
                 detail="The assistant is busy right now. Please try again in a moment.",
@@ -243,16 +239,16 @@ def create_app(
         )
         # Message text and tool results stay out of logs; traces carry them.
         logger.info(
-            "user_id=<%s>, session_id=<%s>, stop_reason=<%s>, tools=<%s>, tool_errors=<%d>, "
-            "input_tokens=<%d>, output_tokens=<%d>, latency_ms=<%d> | invocation finished",
-            ctx.user_id,
-            ctx.session_id,
-            response.stop_reason,
-            ",".join(c.name for c in response.tool_calls),
-            sum(c.status == "error" for c in response.tool_calls),
-            response.usage.input_tokens,
-            response.usage.output_tokens,
-            (time.perf_counter() - started) * 1000,
+            "invocation finished",
+            extra={
+                **caller(ctx),
+                "stop_reason": response.stop_reason,
+                "tools": ",".join(c.name for c in response.tool_calls),
+                "tool_errors": sum(c.status == "error" for c in response.tool_calls),
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "latency_ms": round((time.perf_counter() - started) * 1000),
+            },
         )
         return response
 
