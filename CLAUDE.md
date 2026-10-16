@@ -180,6 +180,7 @@ src/supplies_agent/
 evals/          # eval cases (groups), task, fake supplies tools, runner (python -m evals)
 tests/
 deploy/grafana/ # provisioned dashboard JSON
+Dockerfile, docker-compose.yml
 docs/SCOPE.md   # assignment brief
 ```
 
@@ -189,8 +190,9 @@ The user runs all `uv` commands (see Working rules).
 
 - Install: `uv sync`
 - Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
-- Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers.
+- Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers. Host headers are checked on any bind address (`MCP_ALLOWED_HOSTS`, JSON list; the SDK alone checks only on localhost).
 - Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
+- Run everything in containers: `docker compose up --build` (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
 - Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
 - Eval: `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.

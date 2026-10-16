@@ -8,7 +8,7 @@ import pytest
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
 
-from supplies_agent.mcp_server.server import build_server, idempotency_key
+from supplies_agent.mcp_server.server import build_server, idempotency_key, transport_security
 
 pytestmark = pytest.mark.anyio
 
@@ -176,3 +176,27 @@ async def test_created_and_duplicate_orders_are_logged(server, caplog):
     created = "po_number=<PO-000001>, user_id=<alice>, session_id=<session-1> | purchase order"
     assert created in caplog.text
     assert "duplicate order blocked" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("host", "status"), [("mcp-server:8002", 200), ("localhost:8002", 200), ("evil.example", 421)]
+)
+async def test_only_allowed_host_headers_are_served_even_on_all_interfaces(
+    mcp_settings, api, host, status
+):
+    settings = mcp_settings.model_copy(update={"allowed_hosts": ["mcp-server:*", "localhost:*"]})
+    server = build_server(settings, api)
+    app = server.streamable_http_app(
+        stateless_http=True,
+        json_response=True,
+        host="0.0.0.0",  # where the SDK alone would leave the checks off
+        transport_security=transport_security(settings),
+    )
+    async with server.session_manager.run():
+        async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app)) as http:
+            response = await http.post(
+                f"http://{host}/mcp",
+                json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                headers={"Accept": "application/json, text/event-stream", **IDENTITY},
+            )
+    assert response.status_code == status

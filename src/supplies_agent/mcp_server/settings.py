@@ -9,6 +9,9 @@ class McpSettings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8002
+    # DNS-rebinding protection: only requests with one of these Host headers are served, whatever
+    # the bind address. In compose, add the service name, e.g. '["mcp-server:*", "localhost:*"]'.
+    allowed_hosts: list[str] = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
 
     # How to reach the supplies API (the mock).
     api_url: str = "http://127.0.0.1:8001"

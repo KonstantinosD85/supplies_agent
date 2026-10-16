@@ -106,7 +106,7 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
   store) with the real model and fake tools; resumes an approval interrupt with the case's decision;
   returns the reply, the tool names and the end state (tools called, proposed orders, orders placed,
   saved facts).
-- [x] 11 cases in 5 groups, one `Experiment` each: right tool, approval gate (propose/approve/decline),
+- [x] 12 cases in 5 groups, one `Experiment` each: right tool, approval gate (propose/approve/decline),
   out of scope, read and write outage, user facts (collect, one-off location, team). New-session
   recall and isolation between users are covered by pytest (`tests/agent/test_profile.py`).
 - [x] Built-in evaluators only: `StateEquals` (per-case expected state), `ToolCalled`, and LLM judges
@@ -114,13 +114,21 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Runner `python -m evals` (`--case`), summary with expected vs actual, `evals/results/latest.json`,
   exit code.
 - [x] Pipeline tests with scripted models (no LLM calls).
-- [ ] First real run; commit `evals/results/latest.json`.
+- [x] First real run: 12/12 cases pass; `evals/results/latest.json` committed.
 - Deps: `uv add --group evals strands-agents-evals` (done).
 
 ### D7: Docker compose
 
-- [ ] One image per service, each installing only its dependency group; `linux/arm64`; agent on `0.0.0.0:8080`.
-- [ ] Decide `transport_security` for the MCP server when it binds to `0.0.0.0`.
+- [x] One `Dockerfile` (`GROUP` build arg), built three times; each image installs only its dependency
+  group (uv multi-stage, non-editable, `.venv` only, non-root user); `linux/arm64`; services on `0.0.0.0`.
+- [x] `docker-compose.yml`: mock (`127.0.0.1:8001`, for the fault switch), MCP server (internal only),
+  agent (`8080`); healthchecks and `depends_on: service_healthy`; named volumes for both SQLite files;
+  `.env` for the agent; `MOCK_API_KEY` shared by the mock and the MCP server.
+- [x] `transport_security`: DNS-rebinding protection kept on at `0.0.0.0` with `MCP_ALLOWED_HOSTS`
+  (compose: `mcp-server:*`, `localhost:*`); other Host headers get 421. Test in `tests/mcp_server`.
+- [x] Smoke check: images build, all three healthy, agent → MCP → mock call works, bad Host → 421.
+- [ ] Live check: `docker compose up --build`, UI approve flow, pending approval survives
+  `docker compose restart agent`, faults on via `PUT /admin/faults`.
 
 ### D8: Observability
 

@@ -1,0 +1,72 @@
+# docker compose up --build
+#   web UI and /invocations: http://localhost:8080
+#   mock API (fault switch): http://localhost:8001/admin/faults
+# Reads .env for ANTHROPIC_API_KEY and optional AGENT_* / MOCK_API_KEY overrides.
+
+x-build: &build
+  context: .
+  platforms: [linux/arm64]
+
+services:
+  mock-api:
+    build: { <<: *build, args: { GROUP: api } }
+    platform: linux/arm64
+    command: mock-api
+    environment:
+      API_HOST: 0.0.0.0
+      API_KEY: ${MOCK_API_KEY:-dev-mock-key}
+      API_DB_PATH: /data/mock.db
+    ports:
+      - "127.0.0.1:8001:8001"  # local only: PUT /admin/faults to turn faults on
+    volumes:
+      - mock-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mcp-server:
+    build: { <<: *build, args: { GROUP: mcp } }
+    platform: linux/arm64
+    command: mcp-server
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_API_URL: http://mock-api:8001
+      MCP_API_KEY: ${MOCK_API_KEY:-dev-mock-key}
+      MCP_ALLOWED_HOSTS: '["mcp-server:*", "localhost:*"]'
+    # Not published: only the agent service reaches it, on the compose network.
+    depends_on:
+      mock-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8002), 2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agent:
+    build: { <<: *build, args: { GROUP: agent } }
+    platform: linux/arm64
+    command: agent-service
+    env_file:
+      - path: .env
+        required: false
+    environment:  # wins over .env
+      AGENT_HOST: 0.0.0.0
+      AGENT_MCP_URL: http://mcp-server:8002/mcp
+      AGENT_DB_PATH: /data/agent.db
+    ports:
+      - "8080:8080"
+    volumes:
+      - agent-data:/data  # sessions and pending approvals survive a restart
+    depends_on:
+      mcp-server: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mock-data:
+  agent-data:

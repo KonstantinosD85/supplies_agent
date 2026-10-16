@@ -11,6 +11,7 @@ from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
@@ -325,6 +326,15 @@ def build_server(settings: McpSettings, api: SuppliesApi | None = None) -> MCPSe
     return mcp
 
 
+def transport_security(settings: McpSettings) -> TransportSecuritySettings:
+    """Host header checks on any bind address. The SDK turns them on by itself only for
+    127.0.0.1/localhost, so on 0.0.0.0 (in a container) they would otherwise be off.
+    """
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True, allowed_hosts=settings.allowed_hosts
+    )
+
+
 def main() -> None:
     configure_logging()
     settings = McpSettings()
@@ -334,4 +344,5 @@ def main() -> None:
         port=settings.port,
         stateless_http=True,
         json_response=True,
+        transport_security=transport_security(settings),
     )
