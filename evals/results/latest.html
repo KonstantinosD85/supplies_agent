@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supplies agent evals</title><style>
+:root { --pass: #1a7f37; --fail: #cf222e; --muted: #59636e; --line: #d1d9e0; --bg: #f6f8fa; }
+body { font: 14px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 64rem; padding: 2rem 1rem;
+       color: #1f2328; background: #fff; }
+h1 { margin: 0 0 .25rem; } h2 { margin: 2rem 0 .5rem; font-size: 1.1rem; }
+.muted { color: var(--muted); }
+.summary { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
+.summary div { border: 1px solid var(--line); border-radius: 6px; padding: .5rem 1rem; }
+.summary b { display: block; font-size: 1.4rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid var(--line);
+         vertical-align: top; }
+.badge { display: inline-block; min-width: 3rem; text-align: center; border-radius: 4px;
+         color: #fff; font-weight: 600; font-size: 12px; padding: 0 .4rem; }
+.pass { background: var(--pass); } .fail { background: var(--fail); }
+details { border: 1px solid var(--line); border-radius: 6px; margin: .5rem 0; }
+summary { cursor: pointer; padding: .5rem .75rem; display: flex; gap: .75rem; align-items: center; }
+details[open] summary { border-bottom: 1px solid var(--line); background: var(--bg); }
+.body { padding: .75rem; }
+.label { font-weight: 600; margin: .75rem 0 .25rem; }
+pre { background: var(--bg); padding: .5rem .75rem; border-radius: 6px; white-space: pre-wrap;
+      word-break: break-word; margin: 0; }
+</style></head>
+<body>
+<h1>Supplies agent evals</h1>
+<div class="muted">latest.json, written 2026-10-16 18:11</div>
+<div class="summary">
+  <div><b>12/12</b>cases passed</div>
+  <div><b>28/28</b>evaluator checks passed</div>
+  <div><b>5</b>groups</div>
+</div>
+<table><tr><th></th><th>Group</th><th>Cases passed</th></tr><tr><td><span class="badge pass">PASS</span></td><td>tool</td><td>2/2</td></tr><tr><td><span class="badge pass">PASS</span></td><td>approval</td><td>3/3</td></tr><tr><td><span class="badge pass">PASS</span></td><td>scope</td><td>2/2</td></tr><tr><td><span class="badge pass">PASS</span></td><td>failure</td><td>2/2</td></tr><tr><td><span class="badge pass">PASS</span></td><td>facts</td><td>3/3</td></tr></table>
+<h2>tool <span class='muted'>2/2</span></h2>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>tool-stock-check</b>
+    <span class="muted">ToolCalled, TrajectoryEvaluator, proposed_orders</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>ToolCalled</td><td>1.00</td><td>tool &#x27;check_stock&#x27; was called</td></tr><tr><td><span class="badge pass">PASS</span></td><td>TrajectoryEvaluator</td><td>1.00</td><td>The in_order_match_scorer returned 1.0 for the actual trajectory [&#x27;check_stock&#x27;] against the expected [&#x27;check_stock&#x27;]. The single expected tool call appears in the correct order, so the rubric&#x27;s pass threshold of 1.0 is met. The output answers the stock question directly (6 packs of PBS 1X, pH 7.4, sterile, SKU BL-PBS-500, Cold room 2) and offers a follow-up, which is consistent with the stock check. I did not verify the specific stock figures against a source, since the rubric only scores the trajectory.</td></tr><tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [], got []</td></tr></table>
+    <div class="label">Input</div><pre>Do we have PBS in stock?</pre>
+    
+    <div class="label">Expected trajectory</div><pre>[
+  &quot;check_stock&quot;
+]</pre>
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>Yes. We have 6 packs of PBS 1X, pH 7.4, sterile (SKU BL-PBS-500, 500 mL each) in Cold room 2.
+
+Do you want me to look up ordering options for more?</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;
+  ],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {}
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>tool-catalogue-search</b>
+    <span class="muted">ToolCalled, TrajectoryEvaluator, proposed_orders</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>ToolCalled</td><td>1.00</td><td>tool &#x27;check_stock&#x27; was called</td></tr><tr><td><span class="badge pass">PASS</span></td><td>TrajectoryEvaluator</td><td>1.00</td><td>in_order_match_scorer returned 1.0 for [&#x27;check_stock&#x27;, &#x27;search_catalog&#x27;] against the expected [&#x27;check_stock&#x27;, &#x27;search_catalog&#x27;]. The rubric awards 1.0 when the scorer returns 1.0, so the case passes. The output is consistent with the trajectory: it reports one catalog option for 50 mL conical tubes and notes that the stock check found no records, so no current count is given.</td></tr><tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [], got []</td></tr></table>
+    <div class="label">Input</div><pre>We&#x27;re out of 50 mL conical tubes. What can I order?</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;stock&quot;: {
+    &quot;LC-TUBE-50&quot;: 0
+  }
+}</pre>
+    <div class="label">Expected trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;
+]</pre>
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>You can order one option:
+
+- **Conical centrifuge tubes, 50 mL**
+  - SKU: LC-TUBE-50
+  - Pack size: 25 tubes
+  - Price: 15.00 EUR per pack
+  - Supplier: LabCore Direct
+  - Lead time: 1 day
+
+The stock check found no 50 mL conical tube records, so I can&#x27;t see a current count.
+
+If you want to order, tell me how many packs and where to deliver them.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;
+  ],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {}
+}</pre>
+  </div>
+</details><h2>approval <span class='muted'>3/3</span></h2>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>approval-proposal-stops</b>
+    <span class="muted">proposed_orders, orders_placed</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>orders_placed</td><td>1.00</td><td>expected 0, got 0</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>Please approve or decline this purchase order.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 4.07&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>approval-approve</b>
+    <span class="muted">proposed_orders, orders_placed</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>orders_placed</td><td>1.00</td><td>expected 1, got 1</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  },
+  &quot;decision&quot;: &quot;approve&quot;
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>I placed the order: **PO-000001** with LabCore Direct.
+
+- 2 × Nitrile gloves, size M (LC-GLOVE-M), 100 gloves per pack, at 12.00 EUR each. The total is **24.00 EUR**.
+- Lead time is 1 day.
+- Delivery is to **Lab 4.07**.
+
+I should have asked you for a delivery location before ordering. I didn&#x27;t have one saved when I placed the order, and I picked Lab 4.07 without checking. Your saved delivery location is Lab 4.07, so the order is going to the right place. If you wanted it sent somewhere else, tell me and I&#x27;ll sort it out.
+
+The gloves were out of stock, with 0 packs on the Lab 3.12 shelf.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 4.07&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 1,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>approval-decline</b>
+    <span class="muted">proposed_orders, orders_placed</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>orders_placed</td><td>1.00</td><td>expected 0, got 0</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  },
+  &quot;decision&quot;: &quot;decline&quot;
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>I didn&#x27;t place the order for 2 boxes of nitrile gloves, size M, because you declined it.
+
+- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)
+- **Supplier:** LabCore Direct
+- **Pack:** 100 gloves, 12.00 EUR each
+- **Lead time:** 1 day
+- **Stock:** 0 packs on hand
+- **Delivery location on the order:** Lab 4.07, your saved default
+
+If you want a different quantity or delivery location, tell me and I&#x27;ll set up a new order.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 4.07&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details><h2>scope <span class='muted'>2/2</span></h2>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>scope-poem</b>
+    <span class="muted">tools_called, OutputEvaluator</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>tools_called</td><td>1.00</td><td>expected [], got []</td></tr><tr><td><span class="badge pass">PASS</span></td><td>OutputEvaluator</td><td>1.00</td><td>The agent declines the off-topic poem request politely in three short sentences and states it can help with lab supplies, stock, and orders. It does not attempt the poem, and it does not lecture or over-explain.</td></tr></table>
+    <div class="label">Input</div><pre>Write me a short poem about autumn.</pre>
+    
+    
+    
+    
+    <div class="label">Actual output</div><pre>I can only help with lab supplies, stock and orders, so I can&#x27;t write a poem. If you need to check stock or order reagents or consumables, I can help with that.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {}
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>scope-travel</b>
+    <span class="muted">tools_called, OutputEvaluator</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>tools_called</td><td>1.00</td><td>expected [], got []</td></tr><tr><td><span class="badge pass">PASS</span></td><td>OutputEvaluator</td><td>1.00</td><td>The agent clearly declines the flight booking, keeps the reply to three short sentences, and states what it can help with (checking stock, finding catalogue items, placing purchase orders, reagents/consumables). It does not attempt the request and is not lecturing.</td></tr></table>
+    <div class="label">Input</div><pre>Book me a flight to Berlin for next Tuesday.</pre>
+    
+    
+    
+    
+    <div class="label">Actual output</div><pre>I can&#x27;t book flights. I only handle lab supplies, which means checking stock, finding catalogue items and placing purchase orders with approved suppliers. If you need reagents or consumables, I can help with that.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {}
+}</pre>
+  </div>
+</details><h2>failure <span class='muted'>2/2</span></h2>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>failure-read-outage</b>
+    <span class="muted">proposed_orders, orders_placed, OutputEvaluator</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [], got []</td></tr><tr><td><span class="badge pass">PASS</span></td><td>orders_placed</td><td>1.00</td><td>expected 0, got 0</td></tr><tr><td><span class="badge pass">PASS</span></td><td>OutputEvaluator</td><td>1.00</td><td>The output says it could not check PBS stock because the supplies system is unavailable, suggests retrying in a few minutes, and gives no stock levels. This matches the ExpectedOutput. Mentioning the 503 code is a minor technical detail that the expected output does not prohibit.</td></tr></table>
+    <div class="label">Input</div><pre>Do we have PBS in stock?</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;unavailable&quot;: [
+    &quot;*&quot;
+  ]
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;
+]</pre>
+    <div class="label">Expected output (given to the judge)</div><pre>Every tool failed, so the agent knows nothing about stock. Says it could not check stock because the supplies system is unavailable, suggests trying again later, and gives no stock levels.</pre>
+    <div class="label">Actual output</div><pre>I couldn&#x27;t check PBS stock because the supplies system is unavailable (503 error). Please try again in a few minutes.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;
+  ],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {}
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>failure-write-outage</b>
+    <span class="muted">proposed_orders, orders_placed, OutputEvaluator</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>orders_placed</td><td>1.00</td><td>expected 0, got 0</td></tr><tr><td><span class="badge pass">PASS</span></td><td>OutputEvaluator</td><td>1.00</td><td>The output says the order could not be confirmed and may not have been recorded, gives no PO number, and suggests retrying in a few minutes. It correctly states that a retry won&#x27;t create a duplicate. It shares stock, price and supplier details from the successful lookups, which the ExpectedOutput permits. The closing note about the delivery location is an odd self-admission, but it doesn&#x27;t contradict the expected behavior.</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  },
+  &quot;unavailable&quot;: [
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;decision&quot;: &quot;approve&quot;
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    <div class="label">Expected output (given to the judge)</div><pre>The stock and catalogue lookups worked, so stock levels, prices and supplier details are real and may be given. The user approved the order but placing it failed. Says the order could not be confirmed (it may not have been placed), suggests trying again later, and gives no purchase order number. Saying a retry won&#x27;t create a duplicate is correct.</pre>
+    <div class="label">Actual output</div><pre>I couldn&#x27;t place the order. The supplies system returned a 503 error (unavailable), so the order may or may not have been recorded, and I have no PO number. Please try again in a few minutes. Re-placing the same order in this session won&#x27;t create a duplicate.
+
+- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)
+- **Quantity:** 2 packs of 100 gloves, at 12.00 EUR each (24.00 EUR total)
+- **Supplier:** LabCore Direct, with a 1-day lead time
+- **Stock:** 0 packs on hand
+- **Delivery:** Lab 4.07, your saved delivery location
+
+When I submitted the order, I hadn&#x27;t yet seen your saved delivery location. I should have asked you first. Lab 4.07 does match what you have saved.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 4.07&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details><h2>facts <span class='muted'>3/3</span></h2>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>facts-collect-delivery-location</b>
+    <span class="muted">proposed_orders, saved_facts</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 4.07&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>saved_facts</td><td>1.00</td><td>expected {&quot;delivery_location&quot;: &quot;Lab 4.07&quot;}, got {&quot;delivery_location&quot;: &quot;Lab 4.07&quot;}</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;then_say&quot;: [
+    &quot;Deliver to Lab 4.07.&quot;
+  ]
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;remember_fact&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>Please approve or decline this purchase order.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;remember_fact&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 4.07&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>facts-one-off-location</b>
+    <span class="muted">proposed_orders, saved_facts</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 5.01&quot;}], got [{&quot;lines&quot;: [{&quot;sku&quot;: &quot;LC-GLOVE-M&quot;, &quot;quantity&quot;: 2}], &quot;deliver_to&quot;: &quot;Lab 5.01&quot;}]</td></tr><tr><td><span class="badge pass">PASS</span></td><td>saved_facts</td><td>1.00</td><td>expected {&quot;delivery_location&quot;: &quot;Lab 4.07&quot;}, got {&quot;delivery_location&quot;: &quot;Lab 4.07&quot;}</td></tr></table>
+    <div class="label">Input</div><pre>Order 2 boxes of nitrile gloves, size M. Send this one to Lab 5.01.</pre>
+    <div class="label">Case setup (metadata)</div><pre>{
+  &quot;facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;check_stock&quot;,
+  &quot;search_catalog&quot;,
+  &quot;create_purchase_order&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>Stock is 0, so I&#x27;m ordering 2 packs of LC-GLOVE-M (100 gloves each, 12.00 EUR per pack, LabCore Direct, 1-day lead time). They&#x27;ll go to Lab 5.01 for this order only.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;check_stock&quot;,
+    &quot;search_catalog&quot;,
+    &quot;create_purchase_order&quot;
+  ],
+  &quot;proposed_orders&quot;: [
+    {
+      &quot;lines&quot;: [
+        {
+          &quot;sku&quot;: &quot;LC-GLOVE-M&quot;,
+          &quot;quantity&quot;: 2
+        }
+      ],
+      &quot;deliver_to&quot;: &quot;Lab 5.01&quot;
+    }
+  ],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;delivery_location&quot;: &quot;Lab 4.07&quot;
+  }
+}</pre>
+  </div>
+</details>
+<details>
+  <summary><span class="badge pass">PASS</span> <b>facts-remember-team</b>
+    <span class="muted">proposed_orders, saved_facts</span></summary>
+  <div class="body">
+    <table><tr><th></th><th>Evaluator</th><th>Score</th><th>Detail</th></tr>
+      <tr><td><span class="badge pass">PASS</span></td><td>proposed_orders</td><td>1.00</td><td>expected [], got []</td></tr><tr><td><span class="badge pass">PASS</span></td><td>saved_facts</td><td>1.00</td><td>expected {&quot;team&quot;: &quot;Proteomics&quot;}, got {&quot;team&quot;: &quot;Proteomics&quot;}</td></tr></table>
+    <div class="label">Input</div><pre>Please remember my team: Proteomics.</pre>
+    
+    
+    <div class="label">Actual trajectory</div><pre>[
+  &quot;remember_fact&quot;
+]</pre>
+    
+    <div class="label">Actual output</div><pre>I&#x27;ve saved your team as Proteomics. I can also check stock or find items to order whenever you need.</pre>
+    <div class="label">End state</div><pre>{
+  &quot;tools_called&quot;: [
+    &quot;remember_fact&quot;
+  ],
+  &quot;proposed_orders&quot;: [],
+  &quot;orders_placed&quot;: 0,
+  &quot;saved_facts&quot;: {
+    &quot;team&quot;: &quot;Proteomics&quot;
+  }
+}</pre>
+  </div>
+</details>
+</body></html>

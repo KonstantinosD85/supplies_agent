@@ -175,12 +175,13 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 
 ```
 src/supplies_agent/
-  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping, / = static/index.html web UI)
+  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping, / = static/index.html web UI; telemetry.py: OTel traces, metrics, logs)
   memory/       # SQLite SessionRepository (sessions.py) + MemoryStore for user facts (facts.py)
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
-  telemetry/    # OTel setup + custom metrics
+  logs.py       # shared logging setup (configure_logging, ConsoleFormatter); imports no layer
 evals/          # eval cases (groups), task, fake supplies tools, runner (python -m evals)
+scripts/        # eval_report.py: HTML report from evals/results/latest.json
 tests/
 deploy/grafana/ # provisioned dashboard JSON
 Dockerfile, docker-compose.yml
@@ -189,13 +190,14 @@ docs/SCOPE.md   # assignment brief
 
 ## Commands
 
-The user runs all `uv` commands (see Working rules).
+The user runs all `uv` commands (see Working rules), including the `make` targets that wrap them. `make` (or `make help`) lists the targets; a new target needs a `## description` on its line to show up there.
 
 - Install: `uv sync`
-- Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
-- Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers. Host headers are checked on any bind address (`MCP_ALLOWED_HOSTS`, JSON list; the SDK alone checks only on localhost).
-- Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
-- Run everything in containers: `docker compose up --build` (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, Grafana on `localhost:3000` (admin/admin), mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
-- Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
-- Lint/format: `uv run ruff check . && uv run ruff format .`
-- Eval: `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.
+- Run the mock: `make api` / `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
+- Run the MCP server: `make mcp` / `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers. Host headers are checked on any bind address (`MCP_ALLOWED_HOSTS`, JSON list; the SDK alone checks only on localhost).
+- Run the agent service: `make agent` / `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
+- Run everything in containers: `make docker-up` / `docker compose up --build` (stop: `make docker-down`, keeps the volumes) (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, Grafana on `localhost:3000` (admin/admin), mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
+- Test: `make test` or `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
+- Lint: `make lint` (`ruff check` + `ruff format --check`, changes nothing). Fix and format: `make format` (`ruff check --fix` + `ruff format`).
+- Eval: `make eval` or `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.
+- Eval report: `make eval-report` runs the evals, then `scripts/eval_report.py` (standard library only; can also run on its own) turns `latest.json` into `evals/results/latest.html`: one entry per case, grouped by the name prefix (`tool-`, `approval-`, …), with each evaluator's verdict, trajectories, output and end state.

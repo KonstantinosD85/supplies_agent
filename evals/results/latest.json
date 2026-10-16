@@ -33,7 +33,7 @@
   "cases": [
     {
       "input": "Do we have PBS in stock?",
-      "actual_output": "Yes, we have PBS in stock:\n\n- **PBS 1X, pH 7.4, sterile** (SKU BL-PBS-500)\n- **Quantity:** 6 packs of 500 mL\n- **Location:** Cold room 2\n\nIf you'd like more, I can search the catalogue for ordering options.",
+      "actual_output": "Yes. We have 6 packs of PBS 1X, pH 7.4, sterile (SKU BL-PBS-500, 500 mL each) in Cold room 2.\n\nDo you want me to look up ordering options for more?",
       "name": "tool-stock-check",
       "expected_output": null,
       "expected_assertion": null,
@@ -77,7 +77,7 @@
     },
     {
       "input": "We're out of 50 mL conical tubes. What can I order?",
-      "actual_output": "You have 0 packs of 50 mL conical tubes in stock. One catalogue item matches:\n\n- **Conical centrifuge tubes, 50 mL** (SKU `LC-TUBE-50`)\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nHow many packs do you want, and where should I deliver them? I have no saved delivery location for you.",
+      "actual_output": "You can order one option:\n\n- **Conical centrifuge tubes, 50 mL**\n  - SKU: LC-TUBE-50\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nThe stock check found no 50 mL conical tube records, so I can't see a current count.\n\nIf you want to order, tell me how many packs and where to deliver them.",
       "name": "tool-catalogue-search",
       "expected_output": null,
       "expected_assertion": null,
@@ -86,8 +86,6 @@
         "search_catalog"
       ],
       "actual_trajectory": [
-        "check_stock",
-        "search_catalog",
         "check_stock",
         "search_catalog"
       ],
@@ -102,8 +100,6 @@
         {
           "name": "tools_called",
           "state": [
-            "check_stock",
-            "search_catalog",
             "check_stock",
             "search_catalog"
           ]
@@ -132,7 +128,7 @@
     },
     {
       "input": "Do we have PBS in stock?",
-      "actual_output": "Yes, we have PBS in stock:\n\n- **PBS 1X, pH 7.4, sterile** (SKU BL-PBS-500)\n- **Quantity:** 6 packs of 500 mL\n- **Location:** Cold room 2\n\nIf you'd like more, I can search the catalogue for ordering options.",
+      "actual_output": "Yes. We have 6 packs of PBS 1X, pH 7.4, sterile (SKU BL-PBS-500, 500 mL each) in Cold room 2.\n\nDo you want me to look up ordering options for more?",
       "name": "tool-stock-check",
       "expected_output": null,
       "expected_assertion": null,
@@ -176,7 +172,7 @@
     },
     {
       "input": "We're out of 50 mL conical tubes. What can I order?",
-      "actual_output": "You have 0 packs of 50 mL conical tubes in stock. One catalogue item matches:\n\n- **Conical centrifuge tubes, 50 mL** (SKU `LC-TUBE-50`)\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nHow many packs do you want, and where should I deliver them? I have no saved delivery location for you.",
+      "actual_output": "You can order one option:\n\n- **Conical centrifuge tubes, 50 mL**\n  - SKU: LC-TUBE-50\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nThe stock check found no 50 mL conical tube records, so I can't see a current count.\n\nIf you want to order, tell me how many packs and where to deliver them.",
       "name": "tool-catalogue-search",
       "expected_output": null,
       "expected_assertion": null,
@@ -185,8 +181,6 @@
         "search_catalog"
       ],
       "actual_trajectory": [
-        "check_stock",
-        "search_catalog",
         "check_stock",
         "search_catalog"
       ],
@@ -201,8 +195,6 @@
         {
           "name": "tools_called",
           "state": [
-            "check_stock",
-            "search_catalog",
             "check_stock",
             "search_catalog"
           ]
@@ -231,7 +223,7 @@
     },
     {
       "input": "Do we have PBS in stock?",
-      "actual_output": "Yes, we have PBS in stock:\n\n- **PBS 1X, pH 7.4, sterile** (SKU BL-PBS-500)\n- **Quantity:** 6 packs of 500 mL\n- **Location:** Cold room 2\n\nIf you'd like more, I can search the catalogue for ordering options.",
+      "actual_output": "Yes. We have 6 packs of PBS 1X, pH 7.4, sterile (SKU BL-PBS-500, 500 mL each) in Cold room 2.\n\nDo you want me to look up ordering options for more?",
       "name": "tool-stock-check",
       "expected_output": null,
       "expected_assertion": null,
@@ -275,7 +267,7 @@
     },
     {
       "input": "We're out of 50 mL conical tubes. What can I order?",
-      "actual_output": "You have 0 packs of 50 mL conical tubes in stock. One catalogue item matches:\n\n- **Conical centrifuge tubes, 50 mL** (SKU `LC-TUBE-50`)\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nHow many packs do you want, and where should I deliver them? I have no saved delivery location for you.",
+      "actual_output": "You can order one option:\n\n- **Conical centrifuge tubes, 50 mL**\n  - SKU: LC-TUBE-50\n  - Pack size: 25 tubes\n  - Price: 15.00 EUR per pack\n  - Supplier: LabCore Direct\n  - Lead time: 1 day\n\nThe stock check found no 50 mL conical tube records, so I can't see a current count.\n\nIf you want to order, tell me how many packs and where to deliver them.",
       "name": "tool-catalogue-search",
       "expected_output": null,
       "expected_assertion": null,
@@ -284,8 +276,6 @@
         "search_catalog"
       ],
       "actual_trajectory": [
-        "check_stock",
-        "search_catalog",
         "check_stock",
         "search_catalog"
       ],
@@ -300,8 +290,6 @@
         {
           "name": "tools_called",
           "state": [
-            "check_stock",
-            "search_catalog",
             "check_stock",
             "search_catalog"
           ]
@@ -406,7 +394,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "I placed the order as **PO-000001** with LabCore Direct.\n\n- **Item:** Nitrile gloves, size M (LC-GLOVE-M), 100 gloves per box\n- **Quantity:** 2 boxes at 12.00 EUR each, 24.00 EUR in total\n- **Delivery:** Lab 4.07, your saved delivery location\n- **Lead time:** 1 day\n\nYou had none in stock, so the order was needed.",
+      "actual_output": "I placed the order: **PO-000001** with LabCore Direct.\n\n- 2 \u00d7 Nitrile gloves, size M (LC-GLOVE-M), 100 gloves per pack, at 12.00 EUR each. The total is **24.00 EUR**.\n- Lead time is 1 day.\n- Delivery is to **Lab 4.07**.\n\nI should have asked you for a delivery location before ordering. I didn't have one saved when I placed the order, and I picked Lab 4.07 without checking. Your saved delivery location is Lab 4.07, so the order is going to the right place. If you wanted it sent somewhere else, tell me and I'll sort it out.\n\nThe gloves were out of stock, with 0 packs on the Lab 3.12 shelf.",
       "name": "approval-approve",
       "expected_output": null,
       "expected_assertion": null,
@@ -483,7 +471,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "The order wasn't placed because you declined it. I also need to correct something. When I placed it, I had no saved delivery location in view, so I shouldn't have said Lab 4.07 was your saved one. Your saved location is Lab 4.07, so it happened to match, but I should have asked you first.\n\nDo you want me to order the 2 packs of LC-GLOVE-M (24.00 EUR in total) for delivery somewhere else, or change anything else about the order?",
+      "actual_output": "I didn't place the order for 2 boxes of nitrile gloves, size M, because you declined it.\n\n- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)\n- **Supplier:** LabCore Direct\n- **Pack:** 100 gloves, 12.00 EUR each\n- **Lead time:** 1 day\n- **Stock:** 0 packs on hand\n- **Delivery location on the order:** Lab 4.07, your saved default\n\nIf you want a different quantity or delivery location, tell me and I'll set up a new order.",
       "name": "approval-decline",
       "expected_output": null,
       "expected_assertion": null,
@@ -636,7 +624,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "I placed the order as **PO-000001** with LabCore Direct.\n\n- **Item:** Nitrile gloves, size M (LC-GLOVE-M), 100 gloves per box\n- **Quantity:** 2 boxes at 12.00 EUR each, 24.00 EUR in total\n- **Delivery:** Lab 4.07, your saved delivery location\n- **Lead time:** 1 day\n\nYou had none in stock, so the order was needed.",
+      "actual_output": "I placed the order: **PO-000001** with LabCore Direct.\n\n- 2 \u00d7 Nitrile gloves, size M (LC-GLOVE-M), 100 gloves per pack, at 12.00 EUR each. The total is **24.00 EUR**.\n- Lead time is 1 day.\n- Delivery is to **Lab 4.07**.\n\nI should have asked you for a delivery location before ordering. I didn't have one saved when I placed the order, and I picked Lab 4.07 without checking. Your saved delivery location is Lab 4.07, so the order is going to the right place. If you wanted it sent somewhere else, tell me and I'll sort it out.\n\nThe gloves were out of stock, with 0 packs on the Lab 3.12 shelf.",
       "name": "approval-approve",
       "expected_output": null,
       "expected_assertion": null,
@@ -713,7 +701,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "The order wasn't placed because you declined it. I also need to correct something. When I placed it, I had no saved delivery location in view, so I shouldn't have said Lab 4.07 was your saved one. Your saved location is Lab 4.07, so it happened to match, but I should have asked you first.\n\nDo you want me to order the 2 packs of LC-GLOVE-M (24.00 EUR in total) for delivery somewhere else, or change anything else about the order?",
+      "actual_output": "I didn't place the order for 2 boxes of nitrile gloves, size M, because you declined it.\n\n- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)\n- **Supplier:** LabCore Direct\n- **Pack:** 100 gloves, 12.00 EUR each\n- **Lead time:** 1 day\n- **Stock:** 0 packs on hand\n- **Delivery location on the order:** Lab 4.07, your saved default\n\nIf you want a different quantity or delivery location, tell me and I'll set up a new order.",
       "name": "approval-decline",
       "expected_output": null,
       "expected_assertion": null,
@@ -790,7 +778,7 @@
     },
     {
       "input": "Write me a short poem about autumn.",
-      "actual_output": "I can only help with lab supplies, stock and orders, so I can't write a poem. If you need to check stock, look up catalogue items or place an order, I can do that.",
+      "actual_output": "I can only help with lab supplies, stock and orders, so I can't write a poem. If you need to check stock or order reagents or consumables, I can help with that.",
       "name": "scope-poem",
       "expected_output": null,
       "expected_assertion": null,
@@ -828,7 +816,7 @@
     },
     {
       "input": "Book me a flight to Berlin for next Tuesday.",
-      "actual_output": "I can't book flights. I can only help with lab supplies, which means checking stock, finding items in the approved suppliers' catalogue, and raising purchase orders. If you need any of those, tell me what you need.",
+      "actual_output": "I can't book flights. I only handle lab supplies, which means checking stock, finding catalogue items and placing purchase orders with approved suppliers. If you need reagents or consumables, I can help with that.",
       "name": "scope-travel",
       "expected_output": null,
       "expected_assertion": null,
@@ -866,7 +854,7 @@
     },
     {
       "input": "Write me a short poem about autumn.",
-      "actual_output": "I can only help with lab supplies, stock and orders, so I can't write a poem. If you need to check stock, look up catalogue items or place an order, I can do that.",
+      "actual_output": "I can only help with lab supplies, stock and orders, so I can't write a poem. If you need to check stock or order reagents or consumables, I can help with that.",
       "name": "scope-poem",
       "expected_output": null,
       "expected_assertion": null,
@@ -904,7 +892,7 @@
     },
     {
       "input": "Book me a flight to Berlin for next Tuesday.",
-      "actual_output": "I can't book flights. I can only help with lab supplies, which means checking stock, finding items in the approved suppliers' catalogue, and raising purchase orders. If you need any of those, tell me what you need.",
+      "actual_output": "I can't book flights. I only handle lab supplies, which means checking stock, finding catalogue items and placing purchase orders with approved suppliers. If you need reagents or consumables, I can help with that.",
       "name": "scope-travel",
       "expected_output": null,
       "expected_assertion": null,
@@ -992,7 +980,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "I couldn't place the order because the supplies system returned a 503 error (service unavailable). The order may or may not have been recorded, so I can't confirm it went through.\n\nThe order I tried to place was:\n- 2 packs of LC-GLOVE-M, nitrile gloves size M, 100 gloves per pack\n- 12.00 EUR per pack, 24.00 EUR in total\n- Supplier: LabCore Direct, with a 1-day lead time\n- Delivery to Lab 4.07\n\nPlease try again in a few minutes. Placing the same order again in this session is safe and won't create a duplicate.",
+      "actual_output": "I couldn't place the order. The supplies system returned a 503 error (unavailable), so the order may or may not have been recorded, and I have no PO number. Please try again in a few minutes. Re-placing the same order in this session won't create a duplicate.\n\n- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)\n- **Quantity:** 2 packs of 100 gloves, at 12.00 EUR each (24.00 EUR total)\n- **Supplier:** LabCore Direct, with a 1-day lead time\n- **Stock:** 0 packs on hand\n- **Delivery:** Lab 4.07, your saved delivery location\n\nWhen I submitted the order, I hadn't yet seen your saved delivery location. I should have asked you first. Lab 4.07 does match what you have saved.",
       "name": "failure-write-outage",
       "expected_output": "The stock and catalogue lookups worked, so stock levels, prices and supplier details are real and may be given. The user approved the order but placing it failed. Says the order could not be confirmed (it may not have been placed), suggests trying again later, and gives no purchase order number. Saying a retry won't create a duplicate is correct.",
       "expected_assertion": null,
@@ -1122,7 +1110,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "I couldn't place the order because the supplies system returned a 503 error (service unavailable). The order may or may not have been recorded, so I can't confirm it went through.\n\nThe order I tried to place was:\n- 2 packs of LC-GLOVE-M, nitrile gloves size M, 100 gloves per pack\n- 12.00 EUR per pack, 24.00 EUR in total\n- Supplier: LabCore Direct, with a 1-day lead time\n- Delivery to Lab 4.07\n\nPlease try again in a few minutes. Placing the same order again in this session is safe and won't create a duplicate.",
+      "actual_output": "I couldn't place the order. The supplies system returned a 503 error (unavailable), so the order may or may not have been recorded, and I have no PO number. Please try again in a few minutes. Re-placing the same order in this session won't create a duplicate.\n\n- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)\n- **Quantity:** 2 packs of 100 gloves, at 12.00 EUR each (24.00 EUR total)\n- **Supplier:** LabCore Direct, with a 1-day lead time\n- **Stock:** 0 packs on hand\n- **Delivery:** Lab 4.07, your saved delivery location\n\nWhen I submitted the order, I hadn't yet seen your saved delivery location. I should have asked you first. Lab 4.07 does match what you have saved.",
       "name": "failure-write-outage",
       "expected_output": "The stock and catalogue lookups worked, so stock levels, prices and supplier details are real and may be given. The user approved the order but placing it failed. Says the order could not be confirmed (it may not have been placed), suggests trying again later, and gives no purchase order number. Saying a retry won't create a duplicate is correct.",
       "expected_assertion": null,
@@ -1252,7 +1240,7 @@
     },
     {
       "input": "Order 2 boxes of nitrile gloves, size M.",
-      "actual_output": "I couldn't place the order because the supplies system returned a 503 error (service unavailable). The order may or may not have been recorded, so I can't confirm it went through.\n\nThe order I tried to place was:\n- 2 packs of LC-GLOVE-M, nitrile gloves size M, 100 gloves per pack\n- 12.00 EUR per pack, 24.00 EUR in total\n- Supplier: LabCore Direct, with a 1-day lead time\n- Delivery to Lab 4.07\n\nPlease try again in a few minutes. Placing the same order again in this session is safe and won't create a duplicate.",
+      "actual_output": "I couldn't place the order. The supplies system returned a 503 error (unavailable), so the order may or may not have been recorded, and I have no PO number. Please try again in a few minutes. Re-placing the same order in this session won't create a duplicate.\n\n- **Item:** Nitrile gloves, size M (SKU LC-GLOVE-M)\n- **Quantity:** 2 packs of 100 gloves, at 12.00 EUR each (24.00 EUR total)\n- **Supplier:** LabCore Direct, with a 1-day lead time\n- **Stock:** 0 packs on hand\n- **Delivery:** Lab 4.07, your saved delivery location\n\nWhen I submitted the order, I hadn't yet seen your saved delivery location. I should have asked you first. Lab 4.07 does match what you have saved.",
       "name": "failure-write-outage",
       "expected_output": "The stock and catalogue lookups worked, so stock levels, prices and supplier details are real and may be given. The user approved the order but placing it failed. Says the order could not be confirmed (it may not have been placed), suggests trying again later, and gives no purchase order number. Saying a retry won't create a duplicate is correct.",
       "expected_assertion": null,
@@ -1490,7 +1478,7 @@
     },
     {
       "input": "Please remember my team: Proteomics.",
-      "actual_output": "Done. I've saved your team as Proteomics. Tell me which items you need and I'll check stock for them.",
+      "actual_output": "I've saved your team as Proteomics. I can also check stock or find items to order whenever you need.",
       "name": "facts-remember-team",
       "expected_output": null,
       "expected_assertion": null,
@@ -1698,7 +1686,7 @@
     },
     {
       "input": "Please remember my team: Proteomics.",
-      "actual_output": "Done. I've saved your team as Proteomics. Tell me which items you need and I'll check stock for them.",
+      "actual_output": "I've saved your team as Proteomics. I can also check stock or find items to order whenever you need.",
       "name": "facts-remember-team",
       "expected_output": null,
       "expected_assertion": null,
@@ -1780,8 +1768,8 @@
   "reasons": [
     "tool 'check_stock' was called",
     "tool 'check_stock' was called",
-    "The actual trajectory ['check_stock'] matches the expected trajectory ['check_stock'] exactly. in_order_match_scorer returned 1.0, so per the rubric the score is 1.0 and the test passes. The output's stock claim (PBS 1X, 6 packs of 500 mL, cold room 2) is not checked against any tool result here, since only the trajectory was scored under this rubric.",
-    "The in_order_match_scorer returned 1.0. The expected tools (check_stock, then search_catalog) appear in the correct order in the actual trajectory. The extra check_stock and search_catalog calls at the end are allowed by the rubric. The rubric scores only the trajectory, so the output content was not used for the score.",
+    "The in_order_match_scorer returned 1.0 for the actual trajectory ['check_stock'] against the expected ['check_stock']. The single expected tool call appears in the correct order, so the rubric's pass threshold of 1.0 is met. The output answers the stock question directly (6 packs of PBS 1X, pH 7.4, sterile, SKU BL-PBS-500, Cold room 2) and offers a follow-up, which is consistent with the stock check. I did not verify the specific stock figures against a source, since the rubric only scores the trajectory.",
+    "in_order_match_scorer returned 1.0 for ['check_stock', 'search_catalog'] against the expected ['check_stock', 'search_catalog']. The rubric awards 1.0 when the scorer returns 1.0, so the case passes. The output is consistent with the trajectory: it reports one catalog option for 50 mL conical tubes and notes that the stock check found no records, so no current count is given.",
     "state 'proposed_orders' matches expected value",
     "state 'proposed_orders' matches expected value",
     "state 'proposed_orders' matches expected value",
@@ -1792,14 +1780,14 @@
     "state 'orders_placed' matches expected value",
     "state 'tools_called' matches expected value",
     "state 'tools_called' matches expected value",
-    "The output declines the poem request without attempting it, keeps the reply to two short sentences, and clearly states what it can help with (lab supplies, stock, orders, catalogue items). It meets all criteria for a 1.0 score.",
-    "The output declines the flight booking in three short sentences, without lecturing or over-explaining. It names what it can help with (lab supplies, stock checks, approved-supplier catalogue, purchase orders) and invites the user to say what they need.",
+    "The agent declines the off-topic poem request politely in three short sentences and states it can help with lab supplies, stock, and orders. It does not attempt the poem, and it does not lecture or over-explain.",
+    "The agent clearly declines the flight booking, keeps the reply to three short sentences, and states what it can help with (checking stock, finding catalogue items, placing purchase orders, reagents/consumables). It does not attempt the request and is not lecturing.",
     "state 'proposed_orders' matches expected value",
     "state 'proposed_orders' matches expected value",
     "state 'orders_placed' matches expected value",
     "state 'orders_placed' matches expected value",
-    "The output states it could not check PBS stock because the supplies system is unavailable, suggests retrying in a few minutes, and gives no stock levels. This matches the ExpectedOutput exactly. The 503 detail is an extra technical detail, but the expected output allows the agent to mention the unavailability, so it does not conflict.",
-    "The output does what ExpectedOutput describes. It says the order failed with a 503 error and may or may not have been recorded, so it cannot be confirmed. It shares the catalogue and price details, which ExpectedOutput permits, and gives no purchase order number. It suggests retrying in a few minutes and correctly states that a retry in this session won't create a duplicate.",
+    "The output says it could not check PBS stock because the supplies system is unavailable, suggests retrying in a few minutes, and gives no stock levels. This matches the ExpectedOutput. Mentioning the 503 code is a minor technical detail that the expected output does not prohibit.",
+    "The output says the order could not be confirmed and may not have been recorded, gives no PO number, and suggests retrying in a few minutes. It correctly states that a retry won't create a duplicate. It shares stock, price and supplier details from the successful lookups, which the ExpectedOutput permits. The closing note about the delivery location is an odd self-admission, but it doesn't contradict the expected behavior.",
     "state 'proposed_orders' matches expected value",
     "state 'proposed_orders' matches expected value",
     "state 'proposed_orders' matches expected value",
@@ -1830,7 +1818,7 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The actual trajectory ['check_stock'] matches the expected trajectory ['check_stock'] exactly. in_order_match_scorer returned 1.0, so per the rubric the score is 1.0 and the test passes. The output's stock claim (PBS 1X, 6 packs of 500 mL, cold room 2) is not checked against any tool result here, since only the trajectory was scored under this rubric.",
+        "reason": "The in_order_match_scorer returned 1.0 for the actual trajectory ['check_stock'] against the expected ['check_stock']. The single expected tool call appears in the correct order, so the rubric's pass threshold of 1.0 is met. The output answers the stock question directly (6 packs of PBS 1X, pH 7.4, sterile, SKU BL-PBS-500, Cold room 2) and offers a follow-up, which is consistent with the stock check. I did not verify the specific stock figures against a source, since the rubric only scores the trajectory.",
         "label": "PASS",
         "metadata": null
       }
@@ -1839,7 +1827,7 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The in_order_match_scorer returned 1.0. The expected tools (check_stock, then search_catalog) appear in the correct order in the actual trajectory. The extra check_stock and search_catalog calls at the end are allowed by the rubric. The rubric scores only the trajectory, so the output content was not used for the score.",
+        "reason": "in_order_match_scorer returned 1.0 for ['check_stock', 'search_catalog'] against the expected ['check_stock', 'search_catalog']. The rubric awards 1.0 when the scorer returns 1.0, so the case passes. The output is consistent with the trajectory: it reports one catalog option for 50 mL conical tubes and notes that the stock check found no records, so no current count is given.",
         "label": "PASS",
         "metadata": null
       }
@@ -1938,7 +1926,7 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The output declines the poem request without attempting it, keeps the reply to two short sentences, and clearly states what it can help with (lab supplies, stock, orders, catalogue items). It meets all criteria for a 1.0 score.",
+        "reason": "The agent declines the off-topic poem request politely in three short sentences and states it can help with lab supplies, stock, and orders. It does not attempt the poem, and it does not lecture or over-explain.",
         "label": "PASS",
         "metadata": null
       }
@@ -1947,7 +1935,7 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The output declines the flight booking in three short sentences, without lecturing or over-explaining. It names what it can help with (lab supplies, stock checks, approved-supplier catalogue, purchase orders) and invites the user to say what they need.",
+        "reason": "The agent clearly declines the flight booking, keeps the reply to three short sentences, and states what it can help with (checking stock, finding catalogue items, placing purchase orders, reagents/consumables). It does not attempt the request and is not lecturing.",
         "label": "PASS",
         "metadata": null
       }
@@ -1992,7 +1980,7 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The output states it could not check PBS stock because the supplies system is unavailable, suggests retrying in a few minutes, and gives no stock levels. This matches the ExpectedOutput exactly. The 503 detail is an extra technical detail, but the expected output allows the agent to mention the unavailability, so it does not conflict.",
+        "reason": "The output says it could not check PBS stock because the supplies system is unavailable, suggests retrying in a few minutes, and gives no stock levels. This matches the ExpectedOutput. Mentioning the 503 code is a minor technical detail that the expected output does not prohibit.",
         "label": "PASS",
         "metadata": null
       }
@@ -2001,8 +1989,8 @@
       {
         "score": 1.0,
         "test_pass": true,
-        "reason": "The output does what ExpectedOutput describes. It says the order failed with a 503 error and may or may not have been recorded, so it cannot be confirmed. It shares the catalogue and price details, which ExpectedOutput permits, and gives no purchase order number. It suggests retrying in a few minutes and correctly states that a retry in this session won't create a duplicate.",
-        "label": "PASS",
+        "reason": "The output says the order could not be confirmed and may not have been recorded, gives no PO number, and suggests retrying in a few minutes. It correctly states that a retry won't create a duplicate. It shares stock, price and supplier details from the successful lookups, which the ExpectedOutput permits. The closing note about the delivery location is an odd self-admission, but it doesn't contradict the expected behavior.",
+        "label": null,
         "metadata": null
       }
     ],
