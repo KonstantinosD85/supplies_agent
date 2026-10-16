@@ -102,7 +102,7 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 | Long-term | User facts (lab, team, delivery location) | Strands memory SDK: our `SqliteFactStore` (`memory/facts.py`, `user_facts` table) in a `MemoryManager`; the profile is injected into the model input on each new message, written only by the `remember_fact` tool through `memory_manager.add` | Per `user_id`, until overwritten |
 
 - **Isolation is structural.** Each session row stores its owner's `user_id`, and the service rejects any request for a session owned by someone else. The fact store is built per request bound to the caller's `user_id`; no memory tool takes a user id from the model.
-- **Facts are a closed set of keys** (`lab`, `team`, `delivery_location`), one value per key: `remember_fact(key, value)` calls `memory_manager.add(value, {"metadata": {"key": key}})` and the store upserts. The SDK's own `search_memory` and free-text `add_memory` tools and extraction stay off. Injection is ephemeral (not saved in session history) and skipped on approval turns.
+- **Facts are a closed set of keys** (`lab`, `team`, `delivery_location`), one value per key: `remember_fact(key, value)` calls `memory_manager.add(value, {"metadata": {"key": key}})` and the store upserts. The SDK's own `search_memory` and free-text `add_memory` tools and extraction stay off. Injection is ephemeral (not saved in session history) and runs on every model call (`trigger: "everyTurn"`): the SDK default injects only on the first call of a turn, but the model picks `deliver_to` after its tool lookups.
 - **Every order needs a delivery location.** `deliver_to` is required by the mock, the MCP tool and the approval card. The agent uses the saved `delivery_location`, otherwise asks once and saves the answer; a location for one order doesn't replace the saved one. The approval hook sends an order without `deliver_to` back to the model instead of proposing it.
 
 ### Observability: OpenTelemetry → Grafana `otel-lgtm` (decided)
@@ -125,15 +125,12 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 ### Evals: Strands Evals SDK (decided)
 
-- Package `strands-agents-evals`, imported as `strands_evals`. Build with `Case`, `Experiment` and evaluators; one command runs every experiment.
-- **Deterministic checks first.** Write custom `Evaluator` subclasses that return `EvaluationOutput` for anything that can be checked exactly. Cases cover:
-  - the right tool chosen (trajectory from `tools_use_extractor`)
-  - an interrupt raised before `create_purchase_order`, with no PO in the mock before approval
-  - exactly one PO after approval with faults on
-- **LLM judges only for fuzzy cases.** Use `OutputEvaluator` or `TrajectoryEvaluator` with a rubric for things like how well an out-of-scope request is refused, or whether the failure message is clear.
-- **Judge model:** string model IDs and the default judge are **Bedrock** IDs. Pass a Strands `AnthropicModel` instance as `model=` so evals don't need AWS.
-- **Multi-turn cases** (propose, then approve or decline) are scripted in the task function, which sends the `approvals` decision itself.
-- Save experiment results (`experiment.to_file`) so the README can cite the latest run.
+- Package `strands-agents-evals` (dependency group `evals`), imported as `strands_evals`. One `Experiment` over all cases; `python -m evals` runs it.
+- **Evals test the agent, not the integration.** Real model, prompt, `/invocations`, approval gate, sessions and fact store; **fake supplies tools** (`evals/fake_supplies.py`). The fakes use the MCP server's real tool definitions (read in-process) and its result models and error wording, with data from `api/seed.py`. A contract test (`tests/evals/test_fake_supplies.py`) compares them with the real MCP tools. Duplicate-PO protection under faults is an integration guarantee, covered by pytest, not by the evals.
+- **Cases are data** (`evals/cases.py`): a script of steps (`{"say"}`, `{"decide"}`, optional `user`/`session`), a setup (saved facts, stock overrides, tools that are down), exact checks and an optional rubric. Groups: right tool, approval gate, out of scope, failures, user facts.
+- **Deterministic checks first.** `ScenarioChecks` runs each case's checks (`evals/evaluators.py` `CHECKS`), one row per check. **LLM judge only for wording** (refusals, outage messages): `RubricJudge` wraps `OutputEvaluator` with the case's rubric and reports "not applicable" for cases without one.
+- **Judge model:** a cheaper Anthropic model (`EVAL_JUDGE_MODEL_ID`, default `claude-haiku-5-5`), passed as an `AnthropicModel` instance so evals don't need AWS (string ids are Bedrock ids).
+- Results: `report.to_file("evals/results/latest.json")`, committed so the README can cite the latest run. Exit code 1 if any case fails.
 
 ### AgentCore Runtime readiness (decided)
 
@@ -180,7 +177,7 @@ src/supplies_agent/
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics
-evals/          # eval cases + runner
+evals/          # eval cases, fake supplies tools, harness, evaluators, runner (python -m evals)
 tests/
 deploy/grafana/ # provisioned dashboard JSON
 docs/SCOPE.md   # assignment brief
@@ -196,4 +193,4 @@ The user runs all `uv` commands (see Working rules).
 - Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
 - Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
-- Eval: _TBD_
+- Eval: `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.

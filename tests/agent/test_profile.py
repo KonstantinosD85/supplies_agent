@@ -35,6 +35,17 @@ def test_remembered_fact_is_injected_in_a_new_session(client_for):
     assert "delivery_location: Lab 3.12" in model_input(model)
 
 
+def test_facts_are_injected_in_every_model_call_of_a_turn(client_for):
+    client_for(ScriptedModel(REMEMBER, "Saved."), session_id="s1").post(
+        "/invocations", json=REQUEST
+    )
+    # The model decides on the order after its lookups, so it needs the profile then too.
+    model = ScriptedModel(tool_call("check_stock", query="gloves"), "Ordering for Lab 3.12.")
+    client_for(model, session_id="s2").post("/invocations", json=REQUEST)
+    assert "delivery_location: Lab 3.12" in model_input(model, call=1)
+    assert model_input(model, call=1).count("<memory>") == 1
+
+
 def test_other_users_never_see_the_fact(client_for):
     client_for(ScriptedModel(REMEMBER, "Saved."), session_id="s1").post(
         "/invocations", json=REQUEST

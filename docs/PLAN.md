@@ -94,15 +94,23 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Fix: a tool batched with an order (e.g. `remember_fact`) showed as waiting for approval. Strands parks
   finished results until the interrupted batch resumes; a `FinishedTools` hook (`AfterToolCallEvent`)
   records them so the response shows them done, once.
-- [ ] Live check with a real model: "order gloves" → asked where → "Lab 3.12" → card shows it; new
+- [x] Live check with a real model: "order gloves" → asked where → "Lab 3.12" → card shows it; new
   session → no question; another user → asked.
 - On AgentCore the store is replaced by AgentCore Memory; `remember_fact` and the manager stay.
 
 ### D6: Evals
 
-- [ ] Strands Evals cases and a runner; deterministic evaluators first, LLM judges only for fuzzy checks.
-- [ ] Save results with `experiment.to_file`.
-- Deps: `uv add --group dev strands-agents-evals` (or a separate `evals` group).
+- [x] Fake supplies tools with the MCP server's real definitions, result models and error wording;
+  contract test against the real MCP tools.
+- [x] Harness: plays a case (messages, approve/decline, other user/session) through `/invocations` with
+  the real model, a fresh SQLite and fake tools.
+- [x] 14 cases: right tool, approval gate (propose/approve/decline), out of scope, read and write outage,
+  user facts (collect, recall in a new session, one-off location, isolation, team).
+- [x] `ScenarioChecks` (exact checks from case metadata) and `RubricJudge` (cheaper judge, rubric cases only).
+- [x] Runner `python -m evals` (`--case`), summary, `evals/results/latest.json`, exit code.
+- [x] Pipeline tests with scripted models (no LLM calls).
+- [ ] First real run; commit `evals/results/latest.json`.
+- Deps: `uv add --group evals strands-agents-evals` (done).
 
 ### D7: Docker compose
 

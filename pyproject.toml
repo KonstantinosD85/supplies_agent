@@ -37,6 +37,9 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]
+evals = [
+    "strands-agents-evals>=1.6.0",
+]
 mcp = [
     "httpx2>=2.13.1",
     "mcp>=2.1,<2.2",
@@ -55,3 +58,4 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = [".", "tests/agent"]  # the evals package, and the scripted model for its tests
