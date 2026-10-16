@@ -125,10 +125,10 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 ### Evals: Strands Evals SDK (decided)
 
-- Package `strands-agents-evals` (dependency group `evals`), imported as `strands_evals`. One `Experiment` over all cases; `python -m evals` runs it.
-- **Evals test the agent, not the integration.** Real model, prompt, `/invocations`, approval gate, sessions and fact store; **fake supplies tools** (`evals/fake_supplies.py`). The fakes use the MCP server's real tool definitions (read in-process) and its result models and error wording, with data from `api/seed.py`. A contract test (`tests/evals/test_fake_supplies.py`) compares them with the real MCP tools. Duplicate-PO protection under faults is an integration guarantee, covered by pytest, not by the evals.
-- **Cases are data** (`evals/cases.py`): a script of steps (`{"say"}`, `{"decide"}`, optional `user`/`session`), a setup (saved facts, stock overrides, tools that are down), exact checks and an optional rubric. Groups: right tool, approval gate, out of scope, failures, user facts.
-- **Deterministic checks first.** `ScenarioChecks` runs each case's checks (`evals/evaluators.py` `CHECKS`), one row per check. **LLM judge only for wording** (refusals, outage messages): `RubricJudge` wraps `OutputEvaluator` with the case's rubric and reports "not applicable" for cases without one.
+- Package `strands-agents-evals` (dependency group `evals`), imported as `strands_evals`. One `Experiment` per group of cases; `python -m evals` runs them all.
+- **Evals test the agent in isolation, as the SDK docs do.** The task (`evals/task.py`) builds the agent with `build_agent` (real model, prompt, approval hook, fact store on a temporary SQLite) and calls `agent.invoke_async` directly: no FastAPI, no session store. A case's `decision` resumes the approval interrupt with `interruptResponse` blocks, as the UI buttons do. **Fake supplies tools** (`evals/fake_supplies.py`) use the MCP server's real tool definitions (read in-process), result models and error wording, with data from `api/seed.py`; a contract test (`tests/evals/test_fake_supplies.py`) compares them with the real MCP tools. Integration guarantees (409s, sessions, user isolation, duplicate POs under faults) are covered by pytest, not by the evals.
+- **Cases** (`evals/cases.py`, `groups(judge)` → `{group: (cases, evaluators)}`): a message plus metadata (`facts`, `stock`, `unavailable`, `then_say`, `decision`), the expected end state (`expected_environment_state`), and optionally `expected_trajectory` and `expected_output` (the reply the judge should see). The task reports four states: `tools_called`, `proposed_orders`, `orders_placed`, `saved_facts`. Groups: tool_choice, approval, out_of_scope, failures, user_facts.
+- **Built-in evaluators only.** Deterministic first: `StateEquals(name)` compares a state with the case's expected value (every case in a group must give one for each `StateEquals` there), `ToolCalled`. LLM judges where exact checks can't decide: `TrajectoryEvaluator` (tool order, via its scorer tools; `trajectory_description` is ignored in 1.6.0) and `OutputEvaluator` with a rubric (refusal and outage wording). `RefusalEvaluator` needs a traced `Session`, so it isn't used.
 - **Judge model:** a cheaper Anthropic model (`EVAL_JUDGE_MODEL_ID`, default `claude-haiku-5-5`), passed as an `AnthropicModel` instance so evals don't need AWS (string ids are Bedrock ids).
 - Results: `report.to_file("evals/results/latest.json")`, committed so the README can cite the latest run. Exit code 1 if any case fails.
 
@@ -177,7 +177,7 @@ src/supplies_agent/
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
   telemetry/    # OTel setup + custom metrics
-evals/          # eval cases, fake supplies tools, harness, evaluators, runner (python -m evals)
+evals/          # eval cases (groups), task, fake supplies tools, runner (python -m evals)
 tests/
 deploy/grafana/ # provisioned dashboard JSON
 docs/SCOPE.md   # assignment brief

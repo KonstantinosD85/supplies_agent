@@ -1,87 +1,100 @@
-"""The eval pipeline itself (cases, harness, evaluators), run with scripted models: no LLM calls."""
+"""Our eval code (case wiring and the task), run with a scripted model: no LLM calls.
 
-import inspect
-from contextlib import contextmanager
+The SDK's evaluators and the judges' rubrics are not tested here; real runs check those.
+"""
 
 import pytest
 from scripted_model import ScriptedModel, tool_call
 from strands_evals import Experiment
-from strands_evals.types import EnvironmentState
+from strands_evals.evaluators import StateEquals
 
-from evals import cases as eval_cases
-from evals.evaluators import CHECKS, RUN_STATE, RubricJudge, ScenarioChecks
-from evals.harness import NOTHING_TO_DECIDE, play, transcript
-from supplies_agent.agent.settings import AgentSettings
+from evals.cases import GLOVES_ORDER, groups
+from evals.task import make_task
 
-ORDER = tool_call(
-    "create_purchase_order", lines=[{"sku": "LC-GLOVE-M", "quantity": 2}], deliver_to=eval_cases.LAB
-)
+pytestmark = pytest.mark.anyio
 
-
-@pytest.mark.parametrize("case", eval_cases.CASES, ids=lambda c: c.name)
-def test_every_check_exists_and_takes_its_arguments(case):
-    for spec in case.metadata["checks"]:
-        check = CHECKS[spec["check"]]
-        args = {k: v for k, v in spec.items() if k != "check"}
-        inspect.signature(check).bind({}, **args)  # raises on unknown or missing arguments
+ORDER = tool_call("create_purchase_order", **GLOVES_ORDER)
+GROUPS = groups(judge=ScriptedModel())
+CASES = {c.name: (c, evaluators) for cases, evaluators in GROUPS.values() for c in cases}
 
 
 def test_case_names_are_unique():
-    names = [c.name for c in eval_cases.CASES]
+    names = [c.name for cases, _ in GROUPS.values() for c in cases]
     assert len(names) == len(set(names))
 
 
-@contextmanager
-def scripted(*turns):
-    """Run the experiment's cases with one scripted agent model and a scripted judge."""
-    agent_model = ScriptedModel(*turns)
-
-    def task(case):
-        run = play(case.input, case.metadata["setup"], AgentSettings(), lambda _: agent_model)
-        return {
-            "output": transcript(run),
-            "trajectory": run["trajectory"],
-            "environment_state": [EnvironmentState(name=RUN_STATE, state=run)],
-        }
-
-    yield task
+@pytest.mark.parametrize("name", CASES)
+def test_every_case_gives_a_value_for_each_state_its_group_checks(name):
+    case, evaluators = CASES[name]
+    expected = {s.name for s in case.expected_environment_state or []}
+    checked = {e.name for e in evaluators if isinstance(e, StateEquals)}
+    assert checked <= expected
 
 
-def run_case(name, task, judge=None):
-    [case] = [c for c in eval_cases.CASES if c.name == name]
-    evaluators = [ScenarioChecks(), RubricJudge(judge or (lambda: ScriptedModel()))]
-    return Experiment[list, str](cases=[case], evaluators=evaluators).run_evaluations(task)
+async def run(name, *turns):
+    """Run one case with a scripted agent model; returns the report and the run's state.
 
-
-def test_a_passing_case_passes_every_evaluator():
-    with scripted(ORDER, "Placed PO-000001.") as task:
-        report = run_case("approval-approve", task)
-    assert report.test_passes == [True, True], report.reasons
-    # No rubric on this case, so the judge reports "not applicable" instead of a verdict.
-    assert report.reasons[1] == "no rubric"
-
-
-def test_a_failing_check_fails_the_case_with_its_reason():
-    with scripted(ORDER, "Declined.") as task:
-        report = run_case("approval-approve", task)  # scripted "approve" never reaches a PO
-    checks_pass, _ = report.test_passes
-    assert not checks_pass
-    assert "FAIL reply_includes_any" in report.reasons[0]
-
-
-def test_a_decision_with_nothing_waiting_is_not_sent_and_fails_the_case():
-    with scripted("Where should I deliver the order?") as task:
-        report = run_case("approval-approve", task)
-    assert not report.test_passes[0]
-    assert (
-        f"FAIL all_requests_succeeded: requests failed or not sent: ['{NOTHING_TO_DECIDE}']"
-        in (report.reasons[0])
+    Only for cases in groups without an LLM judge (the scripted judge has no answers).
+    """
+    case, evaluators = CASES[name]
+    experiment = Experiment[str, str](cases=[case], evaluators=evaluators)
+    report = await experiment.run_evaluations_async(
+        make_task(lambda: ScriptedModel(*turns)), max_workers=1
     )
+    state = {s["name"]: s["state"] for s in report.cases[0]["actual_environment_state"]}
+    return report, state
 
 
-def test_the_judge_scores_cases_with_a_rubric():
-    verdict = tool_call("EvaluationOutput", score=1.0, test_pass=True, reason="Polite refusal.")
-    with scripted("I can only help with lab supplies, stock and orders.") as task:
-        report = run_case("scope-poem", task, judge=lambda: ScriptedModel(verdict))
+async def test_an_approved_order_is_placed_and_passes():
+    report, state = await run("approval-approve", ORDER, "Placed PO-000001.")
     assert report.test_passes == [True, True], report.reasons
-    assert report.reasons[1] == "Polite refusal."
+    assert state["tools_called"] == ["create_purchase_order"]
+    assert state["orders_placed"] == 1
+
+
+async def test_a_declined_order_is_proposed_but_not_placed():
+    report, state = await run("approval-decline", ORDER, "OK, I did not place it.")
+    assert report.test_passes == [True, True], report.reasons
+    assert state["proposed_orders"] == [GLOVES_ORDER]
+    assert state["orders_placed"] == 0
+
+
+async def test_no_proposal_fails_the_case_and_sends_no_decision():
+    report, state = await run("approval-approve", "Where should I deliver the order?")
+    assert report.test_passes == [False, False]
+    assert state["proposed_orders"] == []
+    assert state["tools_called"] == []
+
+
+async def test_saved_facts_reach_the_agent_and_are_reported():
+    model = ScriptedModel(ORDER)
+    case, _ = CASES["approval-proposal-stops"]
+    result = await make_task(lambda: model)(case)
+    state = {s.name: s.state for s in result["environment_state"]}
+    assert state["saved_facts"] == {"delivery_location": "Lab 4.07"}
+    assert "Lab 4.07" in str(model.calls[0]["messages"])  # injected by the memory manager
+
+
+async def test_a_failed_write_places_no_order():
+    case, _ = CASES["failure-write-outage"]
+    result = await make_task(lambda: ScriptedModel(ORDER, "I couldn't confirm the order."))(case)
+    state = {s.name: s.state for s in result["environment_state"]}
+    assert state["proposed_orders"] == [GLOVES_ORDER]
+    assert state["orders_placed"] == 0
+
+
+async def test_a_delivery_location_asked_for_is_saved_and_used():
+    report, state = await run(
+        "facts-collect-delivery-location",
+        "Where should I deliver the order?",
+        tool_call("remember_fact", key="delivery_location", value="Lab 4.07"),
+        ORDER,
+    )
+    assert report.test_passes == [True, True], report.reasons
+    assert state["tools_called"] == ["remember_fact", "create_purchase_order"]
+
+
+async def test_an_order_proposed_before_the_user_answers_ends_the_case():
+    report, state = await run("facts-collect-delivery-location", ORDER)  # no second message
+    assert report.test_passes == [True, False]  # proposed, but nothing was saved
+    assert state["saved_facts"] == {}

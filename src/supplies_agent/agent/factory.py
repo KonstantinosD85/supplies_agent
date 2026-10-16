@@ -39,10 +39,13 @@ def build_agent(
     model: Model,
     tools: list[Any],
     ctx: RequestContext,
-    session_manager: SessionManager,
+    session_manager: SessionManager | None,
     fact_store: MemoryStore,
 ) -> Agent:
-    """A fresh agent per request, restored from the session and tagged with the caller."""
+    """A fresh agent per request, restored from the session and tagged with the caller.
+
+    The evals pass no session manager: they keep one agent object for the whole case.
+    """
     return Agent(
         agent_id=AGENT_ID,  # the session stores history per agent id
         model=model,

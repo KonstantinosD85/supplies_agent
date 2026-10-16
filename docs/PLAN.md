@@ -102,12 +102,17 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 
 - [x] Fake supplies tools with the MCP server's real definitions, result models and error wording;
   contract test against the real MCP tools.
-- [x] Harness: plays a case (messages, approve/decline, other user/session) through `/invocations` with
-  the real model, a fresh SQLite and fake tools.
-- [x] 14 cases: right tool, approval gate (propose/approve/decline), out of scope, read and write outage,
-  user facts (collect, recall in a new session, one-off location, isolation, team).
-- [x] `ScenarioChecks` (exact checks from case metadata) and `RubricJudge` (cheaper judge, rubric cases only).
-- [x] Runner `python -m evals` (`--case`), summary, `evals/results/latest.json`, exit code.
+- [x] Task (`evals/task.py`): runs the agent built by `build_agent` directly (no HTTP, no session
+  store) with the real model and fake tools; resumes an approval interrupt with the case's decision;
+  returns the reply, the tool names and the end state (tools called, proposed orders, orders placed,
+  saved facts).
+- [x] 11 cases in 5 groups, one `Experiment` each: right tool, approval gate (propose/approve/decline),
+  out of scope, read and write outage, user facts (collect, one-off location, team). New-session
+  recall and isolation between users are covered by pytest (`tests/agent/test_profile.py`).
+- [x] Built-in evaluators only: `StateEquals` (per-case expected state), `ToolCalled`, and LLM judges
+  `TrajectoryEvaluator` (tool order) and `OutputEvaluator` (refusal and outage wording).
+- [x] Runner `python -m evals` (`--case`), summary with expected vs actual, `evals/results/latest.json`,
+  exit code.
 - [x] Pipeline tests with scripted models (no LLM calls).
 - [ ] First real run; commit `evals/results/latest.json`.
 - Deps: `uv add --group evals strands-agents-evals` (done).
