@@ -1,0 +1,83 @@
+"""OpenTelemetry for the agent service: traces and metrics over OTLP, via StrandsTelemetry.
+
+FastAPI creates the root span of each request (`POST /invocations`, with the HTTP status) and
+HTTP metrics; Strands creates the agent, cycle, model and tool spans (with tokens, tool args and
+results) and its metrics. We add the caller to the root span and put it in baggage, so every
+span of the request carries user.id and session.id. The baggage also travels with
+the MCP calls (W3C baggage header), ready for when the MCP server and the mock export traces.
+
+Export is on only when OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. in docker compose), so tests,
+evals and plain local runs send nothing.
+"""
+
+import logging
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+from opentelemetry import baggage, context, trace
+from opentelemetry.trace import Span
+from strands.telemetry import StrandsTelemetry
+
+from supplies_agent.agent.schemas import RequestContext
+
+logger = logging.getLogger(__name__)
+
+# The only baggage entries stamped onto spans. Baggage is sent to every downstream service,
+# so it carries ids only, never secrets or content.
+BAGGAGE_KEYS = ("user.id", "session.id")
+
+
+def baggage_key_allowed(key: str) -> bool:
+    return key in BAGGAGE_KEYS
+
+
+def setup() -> None:
+    """Export traces and metrics over OTLP/HTTP, if an endpoint is configured.
+
+    Endpoint, service name and headers come from the standard OTEL_* env vars.
+    """
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if not endpoint:
+        logger.info("OTEL_EXPORTER_OTLP_ENDPOINT not set | telemetry export off")
+        return
+    (
+        StrandsTelemetry()
+        .setup_baggage_processor(baggage_key_allowed)
+        .setup_otlp_exporter()
+        .setup_meter(enable_otlp_exporter=True)
+    )
+    logger.info("endpoint=<%s> | telemetry export on", endpoint)
+
+
+def log_trace() -> str:
+    """For configure_logging: the current trace id on each log line, when there is one."""
+    span = trace.get_current_span().get_span_context()
+    return f" trace_id=<{span.trace_id:032x}>" if span.is_valid else ""
+
+
+# FastAPI(telemetry=...): no spans for the healthcheck, and no per-operation spans
+# (dependencies, endpoint, serialization), which only add noise under the request span.
+FASTAPI_TELEMETRY = {
+    "operation_spans": False,
+    "exclude": lambda scope: scope.get("path") == "/ping",
+}
+
+
+@contextmanager
+def caller_context(ctx: RequestContext, kind: str) -> Iterator[Span]:
+    """Tag the request span with the caller, and put the caller in baggage for its children.
+
+    kind is "message" or "approvals". Yields the request span, for the turn's outcome.
+    """
+    span = trace.get_current_span()  # FastAPI's request span
+    span.set_attributes(
+        {"user.id": ctx.user_id, "session.id": ctx.session_id, "supplies.request.kind": kind}
+    )
+    caller = baggage.set_baggage("user.id", ctx.user_id)
+    caller = baggage.set_baggage("session.id", ctx.session_id, context=caller)
+    token = context.attach(caller)
+    try:
+        yield span
+    finally:
+        context.detach(token)

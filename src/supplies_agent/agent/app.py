@@ -24,7 +24,7 @@ from strands.types.content import Messages
 from strands.types.exceptions import MCPClientInitializationError, ModelThrottledException
 from strands.types.tools import ToolResult
 
-from supplies_agent.agent import approval
+from supplies_agent.agent import approval, telemetry
 from supplies_agent.agent.factory import build_agent
 from supplies_agent.agent.model import build_model, close_model
 from supplies_agent.agent.schemas import (
@@ -136,7 +136,7 @@ def create_app(
     tool_source: ToolSource = mcp_tools,
 ) -> FastAPI:
     settings = settings or AgentSettings()
-    app = FastAPI(title="Lab supplies agent")
+    app = FastAPI(title="Lab supplies agent", telemetry=telemetry.FASTAPI_TELEMETRY)
     locks = SessionLocks()
 
     sessions.setup(settings.db_path, settings.session_retention_days)
@@ -155,6 +155,19 @@ def create_app(
         request: ChatRequest,
         ctx: Annotated[RequestContext, Header()],
     ) -> ChatResponse:
+        kind = "message" if request.message is not None else "approvals"
+        with telemetry.caller_context(ctx, kind) as span:
+            response = invoke(request, ctx)
+            span.set_attributes(
+                {
+                    "supplies.stop_reason": response.stop_reason,
+                    "supplies.pending_approvals": len(response.pending_approvals),
+                }
+            )
+            return response
+
+    def invoke(request: ChatRequest, ctx: RequestContext) -> ChatResponse:
+        """One turn of the agent: the request's message, or decisions on pending orders."""
         started = time.perf_counter()
         try:
             with locks.hold(ctx.session_id):
@@ -247,6 +260,7 @@ def create_app(
 
 
 def main() -> None:
-    configure_logging()
+    configure_logging(trace=telemetry.log_trace)
+    telemetry.setup()
     settings = AgentSettings()
     uvicorn.run(create_app(settings), host=settings.host, port=settings.port)

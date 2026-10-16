@@ -107,15 +107,16 @@ The two layers copy AgentCore Memory's short-term and long-term split, so the Ag
 
 ### Observability: OpenTelemetry → Grafana `otel-lgtm` (decided)
 
-- Set up with `StrandsTelemetry`: `setup_otlp_exporter()` for traces and `setup_meter(enable_otlp_exporter=True)` for metrics.
-- **Built-in Strands signals:** tokens in and out, agent cycles, model latency, and tool calls by name, status and duration.
-- **Custom counters:**
-  - approvals proposed, approved and declined
-  - faults injected
-  - MCP retries, with outcome
-  - duplicate POs blocked
-- **Traces:** one trace per `/invocations` request across the agent service, the MCP server and the mock. Propagate trace context over the MCP and HTTP hops.
-- **Dashboard:** a pre-built Grafana dashboard JSON is provisioned, so `docker compose up` opens to it.
+**Agent service only, for now** (the MCP server and the mock export nothing yet).
+
+- `agent/telemetry.py` `setup()`: `StrandsTelemetry` with `setup_baggage_processor`, `setup_otlp_exporter()` and `setup_meter(enable_otlp_exporter=True)` (deps: `strands-agents[anthropic,otel]`). On only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (compose sets it), so tests, evals and plain local runs export nothing.
+- **Traces:** one trace per `/invocations`. FastAPI's native telemetry makes the root span (`POST /invocations`, HTTP status) and HTTP metrics; configured with `FASTAPI_TELEMETRY` (no `/ping` spans, no per-operation spans). Strands adds agent, cycle, model (`chat`) and tool spans with tokens, args and results.
+- **Caller in baggage:** `caller_context()` sets `user.id` and `session.id` on the root span and in baggage; a `BaggageSpanProcessor` (those two keys only) stamps them on every span. Baggage also travels to the MCP server in `_meta` (its `tools/call` span already joins the trace in-process tests). Ids only in baggage, never secrets or content.
+- **Metrics:** built-in Strands (tokens, cycles, model latency, tool calls/errors/duration) and FastAPI (`http.server.request.duration`). Prometheus names, e.g. `strands_tool_call_count_Count_total`, `strands_event_loop_input_tokens_token_sum`, `http_server_request_duration_seconds_bucket`. Quirks: Strands labels tool metrics with `tool_use_id` (a series per call; aggregate by `tool_name`), counts a tool call interrupted for approval as a tool error, and its seconds histograms use default buckets (0, 5, 10… s), so use model latency (ms) for latency panels.
+- **Dashboard:** `deploy/grafana/supplies-agent.json` (Grafana home in `otel-lgtm`, datasource uids `prometheus`, `tempo`), provisioned by `deploy/grafana/dashboards.yaml`. Stat panels use `sum(last_over_time(...[$__range]))` (counter totals per instance, robust to restarts and new series), graphs use `rate()`. A table lists recent traces via TraceQL.
+- **Custom counter:** `supplies.approvals` (`agent/approval.py`, `outcome` = proposed / approved / declined), created from the global meter, so it is a no-op until `setup()` runs.
+- **Log correlation:** `configure_logging(trace=...)` installs a log-record factory that fills `%(trace)s` after the logger name; the agent passes `telemetry.log_trace` (` trace_id=<32 hex>` inside a request, empty otherwise). `logs.py` stays free of OpenTelemetry (the mock image doesn't have it).
+- **Later:** the MCP server and the mock (counters for faults injected, MCP retries with outcome, duplicate POs blocked) and logs to Loki.
 
 ### Model provider (decided)
 
@@ -149,7 +150,7 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 - Standard library `logging`, configured once by `supplies_agent.logs.configure_logging()` at the start of each service's `main()`. `LOG_LEVEL` (default INFO) for our code, `STRANDS_LOG_LEVEL` (default WARNING) for the SDK.
 - Every module uses `logging.getLogger(__name__)`. Messages follow the Strands style: `field=<value>, other=<value> | message`.
 - Log events and ids, not content: no user message text or tool results in logs (traces carry those).
-- Trace/log correlation (`trace_id` on log lines) comes with D8.
+- The agent's lines carry ` trace_id=<...>` after the logger name (see Observability).
 
 ### Optional extra (decided)
 
@@ -192,7 +193,7 @@ The user runs all `uv` commands (see Working rules).
 - Run the mock: `uv run mock-api` (env prefix `API_`, e.g. `API_KEY`, `API_FAULTS__SERVER_ERROR_RATE`; serves on `127.0.0.1:8001`)
 - Run the MCP server: `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers. Host headers are checked on any bind address (`MCP_ALLOWED_HOSTS`, JSON list; the SDK alone checks only on localhost).
 - Run the agent service: `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
-- Run everything in containers: `docker compose up --build` (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
+- Run everything in containers: `docker compose up --build` (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, Grafana on `localhost:3000` (admin/admin), mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
 - Test: `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
 - Lint/format: `uv run ruff check . && uv run ruff format .`
 - Eval: `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.

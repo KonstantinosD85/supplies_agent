@@ -9,6 +9,7 @@ Every order is approved on its own: approvals are never remembered.
 import logging
 from typing import Any
 
+from opentelemetry import metrics
 from strands import Agent
 from strands.agent import AgentResult
 from strands.hooks import BeforeToolCallEvent, HookProvider, HookRegistry
@@ -20,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 GATED_TOOL = "create_purchase_order"
 INTERRUPT_NAME = "po-approval"
+
+# supplies_approvals_total in Prometheus. A no-op until telemetry.setup() sets a meter provider.
+APPROVALS = metrics.get_meter(__name__).create_counter(
+    "supplies.approvals",
+    description="Purchase orders proposed for approval, and the user's decisions on them.",
+)
 
 DECLINED_MESSAGE = (
     "The user declined this purchase order, so it was not placed. Tell the user it was not "
@@ -55,6 +62,7 @@ class ApprovalHook(HookProvider):
             event.tool_use["toolUseId"],
             decision,
         )
+        APPROVALS.add(1, {"outcome": "approved" if decision == "approve" else "declined"})
         if decision != "approve":
             event.cancel_tool = DECLINED_MESSAGE
 
@@ -118,4 +126,5 @@ def record_pending(
         logger.info(
             "interrupt_id=<%s> | purchase order proposed, waiting for approval", p.interrupt_id
         )
+        APPROVALS.add(1, {"outcome": "proposed"})
     return pending

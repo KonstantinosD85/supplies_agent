@@ -10,6 +10,8 @@ requires-python = ">=3.12"
 # Shared by every layer. Per-layer runtime deps live in the dependency groups below,
 # so each service image installs only its own group (uv sync --no-default-groups --group <layer>).
 dependencies = [
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
     "pydantic-settings>=2.16.0",
 ]
 
@@ -25,7 +27,7 @@ build-backend = "uv_build"
 [dependency-groups]
 agent = [
     "fastapi>=0.143.1",
-    "strands-agents[anthropic]>=1.61.0",
+    "strands-agents[anthropic,otel]>=1.61.0",
     "uvicorn[standard]>=0.54.0",
 ]
 api = [

@@ -1,40 +1,15 @@
 """/invocations end to end: scripted model -> agent -> MCP server (HTTP) -> supplies API."""
 
-import socket
-import threading
-import time
-
 import pytest
-import uvicorn
 from fastapi.testclient import TestClient
 from scripted_model import ScriptedModel, tool_call
 
 from supplies_agent.agent.app import create_app
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
 from supplies_agent.agent.settings import AgentSettings
-from supplies_agent.mcp_server.server import build_server
 
 REQUEST = {"message": "Do we have PBS?"}
 HEADERS = {USER_HEADER: "alice", SESSION_HEADER: "session-1"}
-
-
-@pytest.fixture
-def mcp_url(mcp_settings, api):
-    """Serve the MCP server over real HTTP on a free port, backed by the in-process API."""
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    app = build_server(mcp_settings, api).streamable_http_app(
-        stateless_http=True, json_response=True
-    )
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    while not server.started:
-        time.sleep(0.01)
-    yield f"http://127.0.0.1:{port}/mcp"
-    server.should_exit = True
-    thread.join()
 
 
 def chat(mcp_url, model, db_path, body: dict = REQUEST) -> dict:

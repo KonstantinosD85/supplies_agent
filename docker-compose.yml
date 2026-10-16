@@ -1,6 +1,7 @@
 # docker compose up --build
 #   web UI and /invocations: http://localhost:8080
 #   mock API (fault switch): http://localhost:8001/admin/faults
+#   Grafana (traces, metrics; admin/admin): http://localhost:3000
 # Reads .env for ANTHROPIC_API_KEY and optional AGENT_* / MOCK_API_KEY overrides.
 
 x-build: &build
@@ -55,6 +56,9 @@ services:
       AGENT_HOST: 0.0.0.0
       AGENT_MCP_URL: http://mcp-server:8002/mcp
       AGENT_DB_PATH: /data/agent.db
+      OTEL_SERVICE_NAME: supplies-agent
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_METRIC_EXPORT_INTERVAL: "10000"  # ms; the default 60 s makes the dashboard lag
     ports:
       - "8080:8080"
     volumes:
@@ -67,6 +71,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # Grafana + Tempo (traces) + Prometheus (metrics) + Loki, receiving OTLP on 4318.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.34.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/custom/supplies-agent.json
+    volumes:
+      - ./deploy/grafana/supplies-agent.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/supplies-agent.json:ro
+      - ./deploy/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+      - lgtm-data:/data
+
 volumes:
   mock-data:
   agent-data:
+  lgtm-data:

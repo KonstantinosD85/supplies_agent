@@ -1,0 +1,8 @@
+# Grafana provisioning: load the dashboards in this folder (mounted into otel-lgtm).
+apiVersion: 1
+providers:
+  - name: supplies
+    type: file
+    options:
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards/custom
+      foldersFromFilesStructure: false

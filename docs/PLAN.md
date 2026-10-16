@@ -51,7 +51,7 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Retention: 30 days without activity (`AGENT_SESSION_RETENTION_DAYS`), purged on startup.
 - [x] One turn at a time per session (409 while a turn is running).
 - [x] Tests: history across turns and restarts, tool results kept, sessions isolated, purge, concurrency.
-- [ ] Live check with a real model: a follow-up question that needs the previous turn, across a service restart.
+- [x] Live check with a real model: a follow-up question that needs the previous turn, across a service restart.
 
 ### D3: Approval gate
 
@@ -127,17 +127,31 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] `transport_security`: DNS-rebinding protection kept on at `0.0.0.0` with `MCP_ALLOWED_HOSTS`
   (compose: `mcp-server:*`, `localhost:*`); other Host headers get 421. Test in `tests/mcp_server`.
 - [x] Smoke check: images build, all three healthy, agent → MCP → mock call works, bad Host → 421.
-- [ ] Live check: `docker compose up --build`, UI approve flow, pending approval survives
+- [x] Live check: `docker compose up --build`, UI approve flow, pending approval survives
   `docker compose restart agent`, faults on via `PUT /admin/faults`.
 
-### D8: Observability
+### D8: Observability (agent service only, for now)
 
-- [ ] `StrandsTelemetry` OTLP traces and metrics.
-- [ ] Trace propagation over the MCP and HTTP hops.
-- [ ] Custom counters: approvals, faults injected, MCP retries, duplicate POs blocked.
-- [ ] Correlate logs with traces: add `trace_id`/`span_id` to log lines (a `logging.Filter` reading the current span); optionally ship logs to Loki.
-- [ ] `otel-lgtm` in compose with a provisioned dashboard.
-- Deps: the `[otel]` extra on `strands-agents`, plus OTel instrumentation for FastAPI and httpx.
+- [x] `agent/telemetry.py`: `StrandsTelemetry` OTLP traces and metrics, on only when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Deps: `strands-agents[anthropic,otel]` (exporter + baggage processor).
+- [x] One trace per `/invocations`: FastAPI's native request span is the root (healthcheck excluded,
+  per-operation spans off); Strands' agent, cycle, model and tool spans below it.
+- [x] Caller in baggage (`user.id`, `session.id`), stamped onto every span by a `BaggageSpanProcessor`;
+  the root span also gets `supplies.request.kind`, `supplies.stop_reason`, `supplies.pending_approvals`.
+- [x] Tests (in-memory exporter): one trace with the caller on every span, `/ping` untraced, 403 traced,
+  the MCP server's `tools/call` span joins the agent's trace with the caller from the baggage.
+- [x] Counter `supplies.approvals` (`outcome` = proposed / approved / declined), `supplies_approvals_total`
+  in Prometheus; "Purchase orders" panels on the dashboard.
+- [x] `trace_id=<...>` on the agent's log lines (`configure_logging(trace=telemetry.log_trace)`, a log-record
+  factory; other services leave the field empty), matching the trace in Tempo.
+- [x] `otel-lgtm` (`grafana/otel-lgtm:0.34.0`, Grafana on `127.0.0.1:3000`) in compose; agent exports to it
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`, 10 s metric interval); dashboard `deploy/grafana/supplies-agent.json` is
+  Grafana's home: requests, failures, tokens, tool calls/errors, latency, model latency, recent traces.
+- [x] Smoke check (scratch ports, scripted model): metrics in Prometheus, traces in Tempo (TraceQL by
+  `user.id`), every panel query returns data through Grafana.
+- [x] Live check: `docker compose up --build`, a real conversation, the dashboard and one trace in Grafana.
+- Later: export from the MCP server and the mock (their spans already join the trace once they have
+  an SDK), counters for MCP retries, duplicate POs blocked and faults injected; logs to Loki.
 
 ### D9: Docs support
 
