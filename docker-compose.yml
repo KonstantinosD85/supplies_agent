@@ -20,7 +20,7 @@ services:
     ports:
       - "127.0.0.1:8001:8001"  # local only: PUT /admin/faults to turn faults on
     volumes:
-      - mock-data:/data
+      - ./data:/data  # same mock.db as a local run (API_DB_PATH default data/mock.db)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 5s
@@ -62,7 +62,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - agent-data:/data  # sessions and pending approvals survive a restart
+      - ./data:/data  # same agent.db as a local run: sessions, facts and pending approvals
     depends_on:
       mcp-server: { condition: service_healthy }
     healthcheck:
@@ -84,6 +84,4 @@ services:
       - lgtm-data:/data
 
 volumes:
-  mock-data:
-  agent-data:
   lgtm-data:
