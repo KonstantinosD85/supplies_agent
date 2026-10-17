@@ -24,9 +24,9 @@ from strands_evals.extractors import tools_use_extractor
 from strands_evals.types import EnvironmentState
 
 from evals.fake_supplies import FakeSupplies
-from supplies_agent.agent.app import reply_text
 from supplies_agent.agent.approval import INTERRUPT_NAME
 from supplies_agent.agent.factory import build_agent
+from supplies_agent.agent.invocation import reply_text
 from supplies_agent.agent.model import close_model
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER, RequestContext
 from supplies_agent.memory import facts

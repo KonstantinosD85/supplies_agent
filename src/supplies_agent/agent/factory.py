@@ -28,7 +28,7 @@ def build_memory_manager(fact_store: MemoryStore) -> MemoryManager:
         injection={
             # The profile is a few rows, so fetch all of it whatever the user wrote.
             "query": lambda _: "user profile",
-            # Every model call, not only the first of a turn: the model picks the delivery
+            # Every model call, not only the first of an invocation: the model picks the delivery
             # location after its lookups, when the latest message is a tool result.
             "trigger": "everyTurn",
         },

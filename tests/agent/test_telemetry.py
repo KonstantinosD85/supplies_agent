@@ -14,9 +14,7 @@ from scripted_model import ScriptedModel, tool_call
 from strands import tool
 
 from supplies_agent.agent import telemetry
-from supplies_agent.agent.app import create_app
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
-from supplies_agent.agent.settings import AgentSettings
 
 EXPORTER = InMemorySpanExporter()
 METRICS = InMemoryMetricReader()
@@ -41,9 +39,13 @@ def by_name(exporter) -> dict:
     return {s.name: s for s in exporter.get_finished_spans()}
 
 
-def test_a_request_is_one_trace_with_the_caller_on_every_span(client_for, spans):
+@pytest.mark.parametrize("accept", ["application/json", "text/event-stream"])
+def test_a_request_is_one_trace_with_the_caller_on_every_span(client_for, spans, accept):
+    # Streamed, the turn runs in a worker thread: its spans must still join the request.
     model = ScriptedModel(tool_call("check_stock", query="PBS"), "6 bottles.")
-    response = client_for(model).post("/invocations", json={"message": "PBS?"})
+    response = client_for(model).post(
+        "/invocations", json={"message": "PBS?"}, headers={"Accept": accept}
+    )
     assert response.status_code == 200
 
     finished = spans.get_finished_spans()
@@ -79,12 +81,11 @@ def test_a_refused_request_is_traced_with_its_status_and_caller(client_for, span
     assert root.attributes["user.id"] == "bob"
 
 
-def test_the_mcp_servers_span_joins_the_agents_trace_with_the_caller(mcp_url, tmp_path, spans):
+def test_the_mcp_servers_span_joins_the_agents_trace_with_the_caller(
+    app_for, mcp_agent_settings, spans
+):
     model = ScriptedModel(tool_call("check_stock", query="PBS"), "In stock.")
-    app = create_app(
-        AgentSettings(mcp_url=mcp_url, db_path=str(tmp_path / "agent.db")),
-        model_factory=lambda _: model,
-    )
+    app = app_for(model, settings=mcp_agent_settings)
     headers = {USER_HEADER: "alice", SESSION_HEADER: "session-1"}
     response = TestClient(app).post("/invocations", json={"message": "PBS?"}, headers=headers)
     assert response.status_code == 200

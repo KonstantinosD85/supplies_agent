@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 from scripted_model import ScriptedModel, tool_call
 from strands.types.exceptions import MCPClientInitializationError
 
-from supplies_agent.agent.app import create_app
 from supplies_agent.agent.prompts import SYSTEM_PROMPT
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
 
@@ -93,14 +92,15 @@ def test_invalid_bodies_are_rejected(client_for, body):
     assert response.status_code == 422
 
 
-def test_unreachable_tools_return_503(settings):
+def test_unreachable_tools_return_503(app_for):
     @contextmanager
     def broken(settings, ctx):
         raise MCPClientInitializationError("connection refused")
         yield
 
-    app = create_app(settings, model_factory=lambda _: ScriptedModel(), tool_source=broken)
-    response = TestClient(app, headers=HEADERS).post("/invocations", json=REQUEST)
+    response = TestClient(app_for(ScriptedModel(), broken), headers=HEADERS).post(
+        "/invocations", json=REQUEST
+    )
     assert response.status_code == 503
     assert "try again" in response.json()["detail"]
 

@@ -33,7 +33,7 @@ def build_model(settings: AgentSettings) -> Model:
 async def close_model(model: Model) -> None:
     """Release the provider's HTTP connections, on the event loop that opened them.
 
-    Each request runs its turn in its own event loop. The Anthropic client's async connection
+    Each request runs its invocation in its own event loop. The Anthropic client's async connection
     pool is bound to that loop; left open, it is closed later by garbage collection on a
     different loop and fails with "Event loop is closed". Bedrock uses boto3 (sync): nothing
     to close.

@@ -1,10 +1,11 @@
 """Request and response models of the agent service's HTTP API."""
 
+from collections.abc import Callable
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Who and which conversation travel in headers; the body carries only the turn.
+# Who and which conversation travel in headers; the body carries only the invocation.
 # Set by AgentCore Runtime from the caller's runtimeSessionId; locally the client sets it.
 SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"
 # Same name the MCP server reads. On AgentCore it must be allowlisted on the runtime.
@@ -24,7 +25,7 @@ class ApprovalDecision(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """One turn: either a new message, or decisions on the pending purchase orders."""
+    """One invocation: either a new message, or decisions on the pending purchase orders."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -71,6 +72,45 @@ class ChatResponse(BaseModel):
     usage: Usage
 
 
+# Server-sent events of a streamed invocation (POST /invocations with Accept: text/event-stream).
+# The SSE event name is the key in STREAM_EVENTS; the data is the model as JSON. The stream ends
+# with "done" (the same ChatResponse as the JSON path, the source of truth for the invocation) or
+# "error" (what the JSON path would have answered with an HTTP error status).
+
+
+class TextDelta(BaseModel):
+    text: str
+
+
+class ToolStarted(BaseModel):
+    id: str
+    name: str
+    input: dict[str, Any]
+
+
+class ToolFinished(BaseModel):
+    id: str
+    status: Literal["success", "error"]
+    result: str
+
+
+class StreamError(BaseModel):
+    status: int
+    detail: str
+
+
+# Where a running invocation sends its stream events (a no-op when nobody streams).
+Emit = Callable[[BaseModel], None]
+
+STREAM_EVENTS: dict[type[BaseModel], str] = {
+    TextDelta: "text",
+    ToolStarted: "tool_start",
+    ToolFinished: "tool_end",
+    ChatResponse: "done",
+    StreamError: "error",
+}
+
+
 class RequestContext(BaseModel):
     """Who is calling, in which session. Read from headers, never from the body or the model."""
 
@@ -78,3 +118,7 @@ class RequestContext(BaseModel):
 
     user_id: str = Field(alias=USER_HEADER, pattern=ID_PATTERN)
     session_id: str = Field(alias=SESSION_HEADER, pattern=ID_PATTERN)
+
+    def log_fields(self) -> dict[str, str]:
+        """Log fields naming the caller."""
+        return {"user_id": self.user_id, "session_id": self.session_id}

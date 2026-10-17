@@ -1,6 +1,6 @@
 """Approval gate: create_purchase_order never runs until the user approves that exact order.
 
-The hook interrupts the agent before the tool runs. The turn ends with the proposed order;
+The hook interrupts the agent before the tool runs. The invocation ends with the proposed order;
 the user's next request carries a structured decision ("approve" or "decline") that resumes
 the agent. The decision comes from the UI or API, never from the model's reading of the chat.
 Every order is approved on its own: approvals are never remembered.
@@ -52,7 +52,7 @@ class ApprovalHook(HookProvider):
             # Never show the user an order that can't be placed: send the model back to ask.
             event.cancel_tool = MISSING_DELIVERY_MESSAGE
             return
-        # First pass: raises an interrupt and ends the turn. On resume: returns the decision.
+        # First pass: raises an interrupt and ends the invocation. On resume: returns the decision.
         decision = event.interrupt(
             INTERRUPT_NAME,
             reason={"lines": order.get("lines", []), "deliver_to": order["deliver_to"]},
@@ -66,7 +66,7 @@ class ApprovalHook(HookProvider):
             event.cancel_tool = DECLINED_MESSAGE
 
 
-# --- Pending approvals between turns ---------------------------------------------------------
+# --- Pending approvals between invocations -------------------------------------------------
 # Strands persists the interrupt itself in the session. We also keep a copy of what is waiting
 # in agent.state (public and session-persisted), so a request can be checked against it before
 # the agent runs: a message while an order waits, or a decision when nothing waits, is refused.
@@ -113,14 +113,14 @@ def agent_input(request: ChatRequest, pending: list[PendingApproval]) -> str | l
 def record_pending(
     agent: Agent, result: AgentResult, session_manager: SessionManager
 ) -> list[PendingApproval]:
-    """Store what the turn left waiting for approval (or clear it), and return it."""
+    """Store what the invocation left waiting for approval (or clear it), and return it."""
     pending = [
         PendingApproval(interrupt_id=i.id, **i.reason)
         for i in result.interrupts or []
         if i.name == INTERRUPT_NAME
     ]
     agent.state.set(PENDING_KEY, [p.model_dump() for p in pending])
-    session_manager.sync_agent(agent)  # the turn has ended, so persist the change ourselves
+    session_manager.sync_agent(agent)  # the invocation has ended, so persist the change ourselves
     for p in pending:
         logger.info(
             "purchase order proposed, waiting for approval", extra={"interrupt_id": p.interrupt_id}

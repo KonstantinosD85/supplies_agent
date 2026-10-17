@@ -27,6 +27,7 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 | D6 | Evals | One command runs all cases: right tool, approval respected, out-of-scope refused, faults on. Results are saved to a file. |
 | D7 | `docker compose up` | Mock, MCP server and agent service start from one command. |
 | D8 | Observability | `otel-lgtm` in compose. One trace per `/invocations` across all services, custom metrics, provisioned dashboard. |
+| D10 | Streaming (optional extra) | With `Accept: text/event-stream` the UI shows tool calls and text as they happen; refusals keep their HTTP status; JSON path unchanged. |
 | D9 | Docs support | README skeleton, AGENTCORE diagram and facts, screenshots, eval output. The narrative is the author's. |
 
 ### D1: Read-only agent
@@ -159,6 +160,23 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [ ] Live check: `docker compose up --build`, a conversation, the logs panel and a log → trace link.
 - Later: export from the MCP server and the mock (their spans already join the trace once they have
   an SDK), counters for MCP retries, duplicate POs blocked and faults injected.
+
+### D10: Streaming (optional extra)
+
+- [x] `POST /invocations` with `Accept: text/event-stream`: SSE events `text`, `tool_start`, `tool_end`,
+  then `done` (the `ChatResponse`) or `error`. Without the header, JSON as before.
+- [x] `invocation.prepare()` (a dependency) before the first byte: 403 / 409 / 503 stay HTTP statuses when streaming.
+- [x] One invocation path (`invocation.run()`): `stream_async` text deltas + `ToolCalls` hook (`tool_calls.py`) for tool start/end and the response's tool calls.
+  Streaming runs it in a worker thread (`agent/streaming.py`) that owns the turn to the end:
+  lock, MCP connection and pending approvals are handled even if the client disconnects.
+- [x] UI: `fetch` stream reader, live tool rows (running dot) and text, `done` settles the turn.
+- [x] Tests (`tests/agent/test_streaming.py`): event order, `done` equals the JSON response,
+  proposal + approval streamed, 403 kept, mid-turn failure → `error` event and the session released;
+  streamed turn is one trace (`test_telemetry.py`).
+- [x] Smoke check (scratch port, scripted model, slow tool): events arrive as they happen over real HTTP.
+- [x] Refactor: `app.py` split by concern (`routes`, `dependencies`, `invocation`, `errors`, `streaming`); wiring in
+  FastAPI dependencies, refusals as exception handlers, tests inject via `dependency_overrides`.
+- [ ] Live check: UI with a real model, faults on (slow responses show the running tool), approve flow.
 
 ### D9: Docs support
 

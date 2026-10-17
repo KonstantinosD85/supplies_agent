@@ -41,7 +41,7 @@ Before writing Strands, MCP or other library code, check the current docs with C
 | 7 | Traces | Per request: model calls, tool calls with args and results, latency, tokens and errors (OTel or structured logs). |
 | 8 | Web UI | Thin page that shows tool calls and has approve and decline buttons. Visual design isn't scored. |
 
-Optional (at most one): a handoff to a second agent, streaming, or request cancellation. Don't add one unless asked.
+Optional (at most one): a handoff to a second agent, streaming, or request cancellation. **Chosen: streaming** (see "Optional extra").
 
 Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on Amazon Bedrock AgentCore).
 
@@ -64,6 +64,7 @@ Deliverables also include `README.md` and `AGENTCORE.md` (how this would run on 
 ```
 Browser (thin UI: chat, tool-call log, Approve/Decline)
    │  POST /invocations {message} | {approvals: [{interrupt_id, decision}]}   (AgentCore HTTP contract)
+   │  JSON, or SSE with Accept: text/event-stream
    │  headers: X-User-Id, X-Amzn-Bedrock-AgentCore-Runtime-Session-Id
    ▼
 agent-service   FastAPI + Strands Agent + approval hook + memory (SQLite) + static UI
@@ -146,6 +147,19 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 - Not `BedrockAgentCoreApp` (Option A): we already have FastAPI and want no extra dependency.
 - AgentCore microVMs are per session with temporary disk, so local SQLite state is a local-only choice; on AgentCore, sessions move to AgentCore Memory (see Memory).
 
+### Agent service structure (decided)
+
+One concern per module in `agent/`; FastAPI dependencies wire everything before the route runs.
+
+- `app.py`: `create_app(settings)` only: shared state (`app.state.settings`, `app.state.locks`), storage setup, exception handlers, router. Plus `main()`.
+- `routes.py`: thin endpoints (`/`, `/ping`, `/invocations`): run the prepared turn as JSON, or stream it.
+- `dependencies.py`: `Settings`, `Locks`, `Caller` (async yield: identity headers → span + baggage, so later dependencies and the route inherit it), `WantsStream` (`Accept`), `get_model`, `get_tool_source`, `get_fact_store`, and `PreparedInvocation` (sync yield, the only one reading the body). Tests override `get_model` / `get_tool_source`.
+- `invocation.py`: one agent invocation (one `/invocations` request; it runs as many Strands event-loop cycles as the model needs), no FastAPI. `prepare()` (lock → session (403) → MCP connection (503) → agent → approval check (409), in an `ExitStack`), `run()` (takes the resources over with `pop_all()` and releases them itself; the dependency's teardown releases whatever was never taken over), the reply text.
+- `tool_calls.py`: the `ToolCalls` hook: emits `tool_start`/`tool_end` as tools run, keeps finished results (Strands parks them while an approval waits) and `report()`s the invocation's tool calls for the response; one truncation (`result_text`) for both.
+- `errors.py`: one exception handler per expected error (`SessionAccessDenied` 403, `ApprovalConflict` 409, `SessionBusy` 409, `MCPClientInitializationError` 503, `ModelThrottledException` 503), body `{"detail": ...}`; `answer()` also builds the stream's `error` event.
+- `streaming.py`: the worker-thread bridge and the SSE response.
+- Header models can't share a dependant with other header params, so `Accept` lives in its own dependency. Only one dependency may take the `ChatRequest` body (more would make FastAPI embed it by name).
+
 ### Logging (decided)
 
 - Standard library `logging`, configured once by `supplies_agent.logs.configure_logging()` at the start of each service's `main()`. `LOG_LEVEL` (default INFO) for our code, `STRANDS_LOG_LEVEL` (default WARNING) for the SDK.
@@ -154,9 +168,15 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 - The agent's lines carry ` trace_id=<...>` after the logger name and are exported to Loki (see Observability).
 - Log output isn't unit-tested (decided: not worth the tests); check it in the smoke run.
 
-### Optional extra (decided)
+### Optional extra: streaming (decided)
 
-- **None for now.** No handoff, streaming or cancellation. Revisit only if the user asks.
+- **Opt-in by header:** `POST /invocations` with `Accept: text/event-stream` streams server-sent events; without it the response is the `ChatResponse` JSON, unchanged (tests, evals, curl). AgentCore Runtime passes SSE responses from `/invocations` through.
+- **Events** (`schemas.STREAM_EVENTS`, SSE `event:` name + JSON `data:`): `text` (delta), `tool_start` (`id`, `name`, `input`), `tool_end` (`id`, `status`, `result`), then `done` (the same `ChatResponse` as the JSON path, the source of truth) or `error` (`status`, `detail`).
+- **Refusals stay HTTP statuses:** `invocation.prepare()` (run by the `prepared_invocation` dependency) runs everything that can refuse an invocation (403, 409, MCP 503) before the first byte. A failure mid-invocation becomes a final `error` event (the 200 is already sent). Strands retries model throttling itself; only what's left reaches the user.
+- **One invocation path:** `invocation.run()` serves both: `agent.stream_async` (text deltas) plus the `tool_calls.ToolCalls` hook (`BeforeToolCallEvent` / `AfterToolCallEvent`; tool results aren't stream events). JSON calls it in the request thread with a no-op emit; streaming calls it in a worker thread (`streaming.start`, its own event loop, the request's context copied so spans and logs join the trace) that feeds a queue.
+- **The worker owns the turn:** it releases the session lock and MCP connection and records pending approvals itself, so a client that disconnects mid-stream can't leave the session locked or half-recorded. The turn finishes; its outcome is in the session.
+- **UI:** `fetch` + stream reader (not `EventSource`, GET-only); tool rows and text render live, `done` settles the turn. Text before a tool call is treated as narration and replaced, as the JSON reply shows only the final message.
+- No cancellation or handoff (at most one extra).
 
 ### Still open
 
@@ -175,7 +195,7 @@ One `pyproject.toml` and one `uv.lock`. Shared deps go in `[project].dependencie
 
 ```
 src/supplies_agent/
-  agent/        # Strands agent, prompts, approval hook, FastAPI app (app.py: /invocations, /ping, / = static/index.html web UI; telemetry.py: OTel traces, metrics, logs)
+  agent/        # Strands agent, prompts, approval hook, FastAPI service (see "Agent service structure"; static/index.html web UI; telemetry.py: OTel traces, metrics, logs)
   memory/       # SQLite SessionRepository (sessions.py) + MemoryStore for user facts (facts.py)
   mcp_server/   # MCP server exposing the mock as tools  [done]
   api/          # inventory/ordering mock (SQLite) + fault injection  [done]
@@ -197,7 +217,7 @@ The user runs all `uv` commands (see Working rules), including the `make` target
 - Run the MCP server: `make mcp` / `uv run mcp-server` (env prefix `MCP_`, e.g. `MCP_API_URL`, `MCP_API_KEY`; streamable HTTP at `127.0.0.1:8002/mcp`, stateless, JSON responses). Identity comes from `X-User-Id` / `X-Session-Id` headers. Host headers are checked on any bind address (`MCP_ALLOWED_HOSTS`, JSON list; the SDK alone checks only on localhost).
 - Run the agent service: `make agent` / `uv run agent-service` (env prefix `AGENT_`, plus `ANTHROPIC_API_KEY`; reads `.env`, see `.env.example`; serves `POST /invocations`, `GET /ping` and the web UI at `GET /` on `127.0.0.1:8080`; sessions in `AGENT_DB_PATH`, default `data/agent.db`)
 - Run everything in containers: `make docker-up` / `docker compose up --build` (stop: `make docker-down`, keeps the volumes) (one `Dockerfile`, `GROUP` build arg per service; UI on `localhost:8080`, Grafana on `localhost:3000` (admin/admin), mock on `127.0.0.1:8001` for `PUT /admin/faults` with `X-API-Key`; MCP server internal only; SQLite in named volumes `agent-data`, `mock-data`).
-- Test: `make test` or `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls). Test files need unique basenames.
+- Test: `make test` or `uv run pytest` (agent tests use `tests/agent/scripted_model.py`, a fake model: no LLM calls; the `app_for` fixture in `tests/agent/conftest.py` wires it, and stand-in tools, through `app.dependency_overrides`; `client_for` builds on it). Test files need unique basenames.
 - Lint: `make lint` (`ruff check` + `ruff format --check`, changes nothing). Fix and format: `make format` (`ruff check --fix` + `ruff format`).
 - Eval: `make eval` or `uv run python -m evals` (all cases; `--case <name>` to filter; needs `ANTHROPIC_API_KEY`). Writes `evals/results/latest.json`.
 - Eval report: `make eval-report` runs the evals, then `scripts/eval_report.py` (standard library only; can also run on its own) turns `latest.json` into `evals/results/latest.html`: one entry per case, grouped by the name prefix (`tool-`, `approval-`, …), with each evaluator's verdict, trajectories, output and end state.

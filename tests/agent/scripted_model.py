@@ -20,12 +20,12 @@ def tool_call(name: str, **input: Any) -> ToolUse:
 
 
 class ScriptedModel(Model):
-    """Each call to stream() plays the next turn: a reply string, or tool call(s).
+    """Each call to stream() plays the next turn: a reply string, tool call(s), or an exception.
 
     Records what the model was given on each call in `self.calls`.
     """
 
-    def __init__(self, *turns: str | ToolUse | list[ToolUse]) -> None:
+    def __init__(self, *turns: str | ToolUse | list[ToolUse] | Exception) -> None:
         self.turns = list(turns)
         self.calls: list[dict[str, Any]] = []
 
@@ -50,6 +50,8 @@ class ScriptedModel(Model):
             }
         )
         turn = self.turns.pop(0)
+        if isinstance(turn, Exception):
+            raise turn
         yield {"messageStart": {"role": "assistant"}}
 
         if isinstance(turn, str):

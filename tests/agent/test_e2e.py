@@ -4,39 +4,48 @@ import pytest
 from fastapi.testclient import TestClient
 from scripted_model import ScriptedModel, tool_call
 
-from supplies_agent.agent.app import create_app
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
-from supplies_agent.agent.settings import AgentSettings
 
 REQUEST = {"message": "Do we have PBS?"}
 HEADERS = {USER_HEADER: "alice", SESSION_HEADER: "session-1"}
 
 
-def chat(mcp_url, model, db_path, body: dict = REQUEST) -> dict:
-    """One request on a fresh app (same database), like a restart between turns."""
-    app = create_app(AgentSettings(mcp_url=mcp_url, db_path=db_path), model_factory=lambda _: model)
-    response = TestClient(app).post("/invocations", json=body, headers=HEADERS)
-    assert response.status_code == 200, response.text
-    return response.json()
+@pytest.fixture
+def chat(app_for, mcp_agent_settings):
+    """Send one request on a fresh app (same database), like a restart between requests."""
+
+    def send(model, body: dict = REQUEST) -> dict:
+        app = app_for(model, settings=mcp_agent_settings)
+        response = TestClient(app).post("/invocations", json=body, headers=HEADERS)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    return send
 
 
-def decide(mcp_url, model, db_path, proposed: dict, decision: str) -> dict:
-    [pending] = proposed["pending_approvals"]
-    approvals = [{"interrupt_id": pending["interrupt_id"], "decision": decision}]
-    return chat(mcp_url, model, db_path, {"approvals": approvals})
+@pytest.fixture
+def decide(chat):
+    """Answer the one pending order of a proposal."""
+
+    def send(model, proposed: dict, decision: str) -> dict:
+        [pending] = proposed["pending_approvals"]
+        approvals = [{"interrupt_id": pending["interrupt_id"], "decision": decision}]
+        return chat(model, {"approvals": approvals})
+
+    return send
 
 
 async def purchase_orders(api) -> int:
     return (await api.request("GET", "/purchase-orders")).json()["total"]
 
 
-def test_agent_reads_through_mcp(mcp_url, tmp_path):
+def test_agent_reads_through_mcp(chat):
     model = ScriptedModel(
         tool_call("check_stock", query="PBS"),
         tool_call("search_catalog", query="PBS"),
         "PBS is in stock.",
     )
-    body = chat(mcp_url, model, str(tmp_path / "agent.db"))
+    body = chat(model)
 
     assert model.calls[0]["tools"] == [
         "check_stock",
@@ -51,9 +60,9 @@ def test_agent_reads_through_mcp(mcp_url, tmp_path):
     assert "18.50 EUR" in body["tool_calls"][1]["result"]
 
 
-def test_tool_errors_reach_the_model(mcp_url, tmp_path):
+def test_tool_errors_reach_the_model(chat):
     model = ScriptedModel(tool_call("get_catalog_item", sku="NOPE"), "That SKU does not exist.")
-    body = chat(mcp_url, model, str(tmp_path / "agent.db"))
+    body = chat(model)
 
     [call] = body["tool_calls"]
     assert call["status"] == "error"
@@ -67,23 +76,21 @@ ORDER = tool_call(
 
 
 @pytest.mark.anyio
-async def test_no_purchase_order_exists_before_approval(mcp_url, api, tmp_path):
-    db_path = str(tmp_path / "agent.db")
-    proposed = chat(mcp_url, ScriptedModel(ORDER), db_path)
+async def test_no_purchase_order_exists_before_approval(chat, api):
+    proposed = chat(ScriptedModel(ORDER))
 
     assert proposed["stop_reason"] == "interrupt"
     assert await purchase_orders(api) == 0
 
 
 @pytest.mark.anyio
-async def test_approved_order_is_placed_exactly_once_with_faults_on(mcp_url, api, tmp_path):
-    db_path = str(tmp_path / "agent.db")
+async def test_approved_order_is_placed_exactly_once_with_faults_on(chat, decide, api):
     model = ScriptedModel(ORDER, "The supplies system is down; please try again later.")
-    proposed = chat(mcp_url, model, db_path)
+    proposed = chat(model)
 
     # Every write commits and then fails with a 503, so the MCP server retries until it gives up.
     await api.request("PUT", "/admin/faults", json={"server_error_rate": 1})
-    approved = decide(mcp_url, model, db_path, proposed, "approve")
+    approved = decide(model, proposed, "approve")
 
     [call] = approved["tool_calls"]
     assert call["status"] == "error"
@@ -93,10 +100,9 @@ async def test_approved_order_is_placed_exactly_once_with_faults_on(mcp_url, api
 
 
 @pytest.mark.anyio
-async def test_approved_order_is_placed(mcp_url, api, tmp_path):
-    db_path = str(tmp_path / "agent.db")
+async def test_approved_order_is_placed(chat, decide, api):
     model = ScriptedModel(ORDER, "Placed PO-000001.")
-    approved = decide(mcp_url, model, db_path, chat(mcp_url, model, db_path), "approve")
+    approved = decide(model, chat(model), "approve")
 
     [call] = approved["tool_calls"]
     assert call["status"] == "success"
@@ -105,8 +111,7 @@ async def test_approved_order_is_placed(mcp_url, api, tmp_path):
 
 
 @pytest.mark.anyio
-async def test_declined_order_is_never_placed(mcp_url, api, tmp_path):
-    db_path = str(tmp_path / "agent.db")
+async def test_declined_order_is_never_placed(chat, decide, api):
     model = ScriptedModel(ORDER, "Not placed.")
-    decide(mcp_url, model, db_path, chat(mcp_url, model, db_path), "decline")
+    decide(model, chat(model), "decline")
     assert await purchase_orders(api) == 0

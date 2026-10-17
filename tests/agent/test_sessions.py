@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from fastapi.testclient import TestClient
 from scripted_model import ScriptedModel, tool_call
 
-from supplies_agent.agent.app import create_app
 from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
 
 
@@ -62,7 +61,7 @@ def test_another_users_session_is_rejected(client_for):
     assert intruder.calls == []  # rejected before the model or tools are involved
 
 
-def test_concurrent_turns_in_one_session_are_refused(settings):
+def test_concurrent_turns_in_one_session_are_refused(app_for):
     entered, release = threading.Event(), threading.Event()
 
     @contextmanager
@@ -72,8 +71,9 @@ def test_concurrent_turns_in_one_session_are_refused(settings):
         yield []
 
     model = ScriptedModel("a", "b")
-    app = create_app(settings, model_factory=lambda _: model, tool_source=slow_tools)
-    client = TestClient(app, headers={USER_HEADER: "alice", SESSION_HEADER: "session-1"})
+    client = TestClient(
+        app_for(model, slow_tools), headers={USER_HEADER: "alice", SESSION_HEADER: "session-1"}
+    )
 
     first = threading.Thread(
         target=client.post, args=("/invocations",), kwargs={"json": {"message": "1"}}

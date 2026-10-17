@@ -110,6 +110,8 @@ applyTheme();
   details.tool[open] summary::after { transform: rotate(90deg); }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--warn); }
   .dot.success { background: var(--ok); } .dot.error { background: var(--err); }
+  .dot.running { background: var(--muted); animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 50% { opacity: .3; } }
   .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
   .tool-args { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .tool pre { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); font-size: 12px;
@@ -205,6 +207,8 @@ applyTheme();
 <script>
 // A thin client of POST /invocations. The server holds the real session and pending
 // orders; the transcript is kept in localStorage only so a page reload can redraw it.
+// Turns are streamed (Accept: text/event-stream): tool calls and text show as they happen,
+// and the final "done" event is the same response the JSON path returns.
 const SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id";
 const USER_HEADER = "X-User-Id";
 const ID_PATTERN = /^[A-Za-z0-9_.-]{1,100}$/;
@@ -229,6 +233,7 @@ let state = { entries: [], pending: [] };  // transcript of this (user, session)
 let decisions = {};                         // interrupt_id -> "approve" | "decline"
 let busy = false;
 let busySince = 0;
+let live = null;                            // the turn being streamed: { text, tool_calls }
 
 const transcriptKey = () => `transcript:${userId}:${sessionId}`;
 
@@ -328,17 +333,18 @@ function agentRow(...content) {
 function entryView(entry) {
   if (entry.role === "user") return el("div", { class: "row user" }, el("div", { class: "bubble" }, entry.text));
   if (entry.role === "error") return el("div", { class: "notice" }, entry.text);
-  const bubble = el("div", { class: "bubble" });
-  if (entry.tool_calls.length) {
-    bubble.append(el("div", { class: "tools" },
-      el("div", { class: "tools-title" }, `${entry.tool_calls.length} tool call${entry.tool_calls.length > 1 ? "s" : ""}`),
-      ...entry.tool_calls.map(toolCallView)));
-  }
-  bubble.append(markdown(entry.reply));
+  const bubble = el("div", { class: "bubble" }, toolsView(entry.tool_calls), markdown(entry.reply));
   bubble.append(el("div", { class: "meta" },
     `${(entry.latency_ms / 1000).toFixed(1)} s · ${entry.usage.input_tokens.toLocaleString()} in / ` +
     `${entry.usage.output_tokens.toLocaleString()} out tokens · ${entry.stop_reason}`));
   return agentRow(bubble);
+}
+
+function toolsView(calls) {
+  if (!calls.length) return null;
+  return el("div", { class: "tools" },
+    el("div", { class: "tools-title" }, `${calls.length} tool call${calls.length > 1 ? "s" : ""}`),
+    ...calls.map(toolCallView));
 }
 
 function approvalView(p) {
@@ -361,9 +367,12 @@ function approvalView(p) {
 
 function typingView() {
   const slow = Date.now() - busySince > 8000;
-  return agentRow(el("div", { class: "bubble typing" },
+  const dots = el("div", { class: "typing" },
     el("span", { class: "dots" }, el("span"), el("span"), el("span")),
-    slow ? el("small", {}, "Still working — the supplier system may be slow, retrying…") : null));
+    slow ? el("small", {}, "Still working — the supplier system may be slow, retrying…") : null);
+  if (!live || (!live.text && !live.tool_calls.length)) return agentRow(el("div", { class: "bubble" }, dots));
+  return agentRow(el("div", { class: "bubble" }, toolsView(live.tool_calls),
+    live.text ? markdown(live.text) : dots));
 }
 
 function emptyView() {
@@ -389,33 +398,88 @@ function render() {
   if (!busy && !waiting) $("message").focus();
 }
 
+// Server-sent events from a fetch body: calls onEvent(name, data) for each complete event.
+async function readEvents(response, onEvent) {
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let end;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      const field = (name) => block.split("\n").find((l) => l.startsWith(name + ": "))?.slice(name.length + 2);
+      onEvent(field("event"), JSON.parse(field("data")));
+    }
+  }
+}
+
+function finishTurn(data) {
+  state.entries.push({ role: "agent", ...data, latency_ms: Date.now() - busySince });
+  state.pending = data.pending_approvals;
+}
+
+function failTurn(status, detail) {
+  // A 409 carries the server's pending list: trust it over what the page remembered.
+  if (detail && Array.isArray(detail.pending_approvals)) state.pending = detail.pending_approvals;
+  const message = typeof detail === "string" ? detail : detail?.message || JSON.stringify(detail);
+  state.entries.push({ role: "error", text: `${status} · ${message}` });
+}
+
+function onStreamEvent(name, data) {
+  if (name === "text") {
+    live.text += data.text;
+  } else if (name === "tool_start") {
+    live.text = "";  // text before a tool call is narration; the reply comes after
+    live.tool_calls.push({ id: data.id, name: data.name, input: data.input, status: "running" });
+  } else if (name === "tool_end") {
+    const call = live.tool_calls.find((c) => c.id === data.id);
+    if (call) Object.assign(call, { status: data.status, result: data.result });
+  } else if (name === "done") {
+    finishTurn(data);
+    live.ended = true;
+  } else if (name === "error") {
+    failTurn(data.status, data.detail);
+    live.ended = true;
+  }
+  render();
+}
+
 async function invoke(body) {
   busy = true;
   busySince = Date.now();
+  live = { text: "", tool_calls: [], ended: false };
   render();
   const slowTimer = setTimeout(render, 8100);  // swap in the "still working" note
   try {
     const response = await fetch("/invocations", {
       method: "POST",
-      headers: { "Content-Type": "application/json", [USER_HEADER]: userId, [SESSION_HEADER]: sessionId },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        [USER_HEADER]: userId,
+        [SESSION_HEADER]: sessionId,
+      },
       body: JSON.stringify(body),
     });
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) {
-      state.entries.push({ role: "agent", ...data, latency_ms: Date.now() - busySince });
-      state.pending = data.pending_approvals;
+    if (response.ok && response.headers.get("content-type")?.startsWith("text/event-stream")) {
+      await readEvents(response, onStreamEvent);
+      if (!live.ended) failTurn("Stream", "The connection closed before the turn finished. Reload to see where it got to.");
+    } else if (response.ok) {
+      finishTurn(await response.json());
     } else {
-      const detail = data.detail;
-      // A 409 carries the server's pending list: trust it over what the page remembered.
-      if (detail && Array.isArray(detail.pending_approvals)) state.pending = detail.pending_approvals;
-      const message = typeof detail === "string" ? detail : detail?.message || JSON.stringify(detail);
-      state.entries.push({ role: "error", text: `${response.status} · ${message || response.statusText}` });
+      // Refusals (403, 409, 503 …) arrive before the stream starts, as plain JSON errors.
+      const data = await response.json().catch(() => ({}));
+      failTurn(response.status, data.detail || response.statusText);
     }
   } catch (e) {
     state.entries.push({ role: "error", text: `Request failed: ${e.message}` });
   } finally {
     clearTimeout(slowTimer);
     busy = false;
+    live = null;
     decisions = {};
     save();
     render();

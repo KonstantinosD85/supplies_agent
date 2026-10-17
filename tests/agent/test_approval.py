@@ -1,11 +1,11 @@
-"""The approval gate through /invocations: propose, then approve or decline in the next turn."""
+"""The approval gate through /invocations: propose, then approve or decline in the next one."""
 
 import pytest
 from scripted_model import ScriptedModel, tool_call
 from strands import tool
 
-from supplies_agent.agent.app import AWAITING_APPROVAL_REPLY
 from supplies_agent.agent.approval import DECLINED_MESSAGE, MISSING_DELIVERY_MESSAGE
+from supplies_agent.agent.invocation import AWAITING_APPROVAL_REPLY
 
 LINES = [{"sku": "LC-GLOVE-M", "quantity": 2}]
 
@@ -28,7 +28,7 @@ def order_tool(placed):
 
 @pytest.fixture
 def client(client_for, order_tool):
-    """Each call builds a new app on the same database, like a restart between turns."""
+    """Each call builds a new app on the same database, like a restart between invocations."""
     return lambda model: client_for(model, tools=[order_tool])
 
 

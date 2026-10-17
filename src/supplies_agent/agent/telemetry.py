@@ -24,10 +24,9 @@ from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.instrumentation.logging.handler import LoggingHandler
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.trace import Span
 from strands.telemetry import StrandsTelemetry
 
-from supplies_agent.agent.schemas import RequestContext
+from supplies_agent.agent.schemas import ChatResponse, RequestContext
 
 logger = logging.getLogger(__name__)
 
@@ -79,19 +78,30 @@ FASTAPI_TELEMETRY = {
 
 
 @contextmanager
-def caller_context(ctx: RequestContext, kind: str) -> Iterator[Span]:
-    """Tag the request span with the caller, and put the caller in baggage for its children.
-
-    kind is "message" or "approvals". Yields the request span, for the turn's outcome.
-    """
-    span = trace.get_current_span()  # FastAPI's request span
-    span.set_attributes(
-        {"user.id": ctx.user_id, "session.id": ctx.session_id, "supplies.request.kind": kind}
+def caller_context(ctx: RequestContext) -> Iterator[None]:
+    """Tag the request span with the caller, and put the caller in baggage for its children."""
+    trace.get_current_span().set_attributes(  # FastAPI's request span
+        {"user.id": ctx.user_id, "session.id": ctx.session_id}
     )
     caller = baggage.set_baggage("user.id", ctx.user_id)
     caller = baggage.set_baggage("session.id", ctx.session_id, context=caller)
     token = context.attach(caller)
     try:
-        yield span
+        yield
     finally:
         context.detach(token)
+
+
+def tag_request_kind(kind: str) -> None:
+    """kind is "message" or "approvals"."""
+    trace.get_current_span().set_attribute("supplies.request.kind", kind)
+
+
+def record_outcome(response: ChatResponse) -> None:
+    """The invocation's outcome on the request span (current here, and in a streaming worker)."""
+    trace.get_current_span().set_attributes(
+        {
+            "supplies.stop_reason": response.stop_reason,
+            "supplies.pending_approvals": len(response.pending_approvals),
+        }
+    )
