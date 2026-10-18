@@ -158,8 +158,11 @@ Tick a deliverable off when its "done when" demo works and its tests pass.
 - [x] Smoke check (scratch ports): Loki queries by `user_id`, `stop_reason` and level; the trace's logs
   found from its trace id; dashboard variables provisioned.
 - [ ] Live check: `docker compose up --build`, a conversation, the logs panel and a log → trace link.
-- Later: export from the MCP server and the mock (their spans already join the trace once they have
-  an SDK), counters for MCP retries, duplicate POs blocked and faults injected.
+- [x] MCP server traces: `mcp_server/telemetry.py`, one span per supplies API attempt, caller ids from
+  baggage (`tests/mcp_server/test_mcp_telemetry.py`).
+- [ ] Live check: MCP spans under the tool span in Grafana, with faults on.
+- Later: export from the mock, MCP logs to Loki, counters for MCP retries, duplicate POs blocked and
+  faults injected.
 
 ### D10: Streaming (optional extra)
 
