@@ -57,6 +57,9 @@ applyTheme();
            background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
   .field input { border: 0; background: transparent; width: 7em; outline: none; font-size: 13px; }
   .field code { font-size: 12px; color: var(--text); padding-right: 6px; }
+  .icon-btn { border: 0; background: transparent; padding: 3px; border-radius: 999px; cursor: pointer;
+              display: grid; color: var(--muted); }
+  .icon-btn:hover { color: var(--text); background: var(--surface); }
   .ghost { border: 1px solid var(--border); background: var(--surface); border-radius: 999px;
            padding: 5px 12px; cursor: pointer; font-size: 13px; }
   .ghost:hover { background: var(--surface-2); }
@@ -176,7 +179,7 @@ applyTheme();
       <div>Lab supplies agent<small>Stock, catalogue and purchase orders</small></div>
     </div>
     <label class="field">User <input id="user" autocomplete="off" spellcheck="false"></label>
-    <span class="field">Session <code id="session"></code></span>
+    <span class="field">Session <code id="session"></code><button id="copy-session" class="icon-btn" type="button" title="Copy session id" aria-label="Copy session id"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>
     <button id="new-session" class="ghost" type="button">＋ New session</button>
     <div class="theme">
       <button id="theme-toggle" class="ghost" type="button" title="Theme" aria-label="Theme"
@@ -536,6 +539,18 @@ $("user").addEventListener("change", () => {
   // Same session id, different user: the server answers 403, which shows isolation.
   userId = value;
   load();
+});
+
+// Copies the full id (the header shows only its start), e.g. to filter the Grafana dashboard.
+const COPY_ICON = $("copy-session").innerHTML;
+$("copy-session").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(sessionId);
+    $("copy-session").textContent = "✓";
+    setTimeout(() => { $("copy-session").innerHTML = COPY_ICON; }, 1200);
+  } catch {
+    $("copy-session").title = sessionId;  // clipboard blocked: at least show it on hover
+  }
 });
 
 $("new-session").addEventListener("click", () => {

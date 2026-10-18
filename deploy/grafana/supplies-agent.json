@@ -25,6 +25,16 @@
         }
       },
       {
+        "type": "textbox",
+        "name": "session_id",
+        "label": "Session id",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      },
+      {
         "type": "custom",
         "name": "level",
         "label": "Level",
@@ -41,7 +51,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Requests",
+      "title": "Requests · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -83,7 +93,7 @@
     },
     {
       "type": "stat",
-      "title": "Failed requests (4xx/5xx)",
+      "title": "Failed requests (4xx/5xx) · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -125,7 +135,7 @@
     },
     {
       "type": "stat",
-      "title": "Input tokens",
+      "title": "Input tokens · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -167,7 +177,7 @@
     },
     {
       "type": "stat",
-      "title": "Output tokens",
+      "title": "Output tokens · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -209,7 +219,7 @@
     },
     {
       "type": "stat",
-      "title": "Tool calls",
+      "title": "Tool calls · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -251,7 +261,7 @@
     },
     {
       "type": "stat",
-      "title": "Tool errors",
+      "title": "Tool errors · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -294,7 +304,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Requests by status",
+      "title": "Requests by status · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -334,7 +344,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Request latency",
+      "title": "Request latency · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -379,7 +389,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Tokens per minute",
+      "title": "Tokens per minute · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -424,7 +434,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Model latency",
+      "title": "Model latency · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -469,7 +479,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Tool calls per minute, by tool",
+      "title": "Tool calls per minute, by tool · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -509,7 +519,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Tool errors per minute, by tool",
+      "title": "Tool errors per minute, by tool · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -550,7 +560,7 @@
     },
     {
       "type": "stat",
-      "title": "Purchase orders",
+      "title": "Purchase orders · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -595,7 +605,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Purchase orders per minute, by outcome",
+      "title": "Purchase orders per minute, by outcome · all users",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -635,7 +645,7 @@
     },
     {
       "type": "table",
-      "title": "Recent requests (click a trace ID to open it)",
+      "title": "Recent requests (filtered by user and session; click a trace ID to open it)",
       "datasource": {
         "type": "tempo",
         "uid": "tempo"
@@ -656,14 +666,14 @@
           "queryType": "traceql",
           "limit": 20,
           "tableType": "traces",
-          "query": "{resource.service.name=\"supplies-agent\" && name=\"POST /invocations\"}"
+          "query": "{resource.service.name=\"supplies-agent\" && name=\"POST /invocations\" && span.user.id=~\"${user_id}.*\" && span.session.id=~\"${session_id}.*\"}"
         }
       ],
       "id": 15
     },
     {
       "type": "logs",
-      "title": "Agent logs (filter by user id and level above)",
+      "title": "Agent logs (filtered by user, session and level above)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -683,7 +693,7 @@
             "uid": "loki"
           },
           "queryType": "range",
-          "expr": "{service_name=\"supplies-agent\"} | user_id=~\"${user_id:regex}.*\" | detected_level=~\"$level\""
+          "expr": "{service_name=\"supplies-agent\"} | user_id=~\"${user_id:regex}.*\" | session_id=~\"${session_id:regex}.*\" | detected_level=~\"$level\""
         }
       ],
       "options": {
