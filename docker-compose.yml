@@ -36,6 +36,8 @@ services:
       MCP_API_URL: http://mock-api:8001
       MCP_API_KEY: ${MOCK_API_KEY:-dev-mock-key}
       MCP_ALLOWED_HOSTS: '["mcp-server:*", "localhost:*"]'
+      OTEL_SERVICE_NAME: supplies-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
     # Not published: only the agent service reaches it, on the compose network.
     depends_on:
       mock-api: { condition: service_healthy }

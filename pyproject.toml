@@ -46,6 +46,7 @@ evals = [
 mcp = [
     "httpx2>=2.13.1",
     "mcp>=2.1,<2.2",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
 ]
 
 [tool.uv]

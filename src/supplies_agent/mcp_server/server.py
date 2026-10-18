@@ -16,6 +16,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from supplies_agent.logs import configure_logging
+from supplies_agent.mcp_server import telemetry
 from supplies_agent.mcp_server.client import ApiRejected, ApiUnavailable, SuppliesApi
 from supplies_agent.mcp_server.settings import McpSettings
 
@@ -333,7 +334,8 @@ def transport_security(settings: McpSettings) -> TransportSecuritySettings:
 
 
 def main() -> None:
-    configure_logging()
+    configure_logging(trace=telemetry.log_trace)
+    telemetry.setup()
     settings = McpSettings()
     build_server(settings).run(
         "streamable-http",

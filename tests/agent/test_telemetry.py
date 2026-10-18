@@ -19,18 +19,23 @@ from supplies_agent.agent.schemas import SESSION_HEADER, USER_HEADER
 EXPORTER = InMemorySpanExporter()
 METRICS = InMemoryMetricReader()
 CALLER = {"user.id": "alice", "session.id": "session-1"}
+_added = False
 
 
 @pytest.fixture
 def spans():
-    """Spans finished during the test. The global provider can be set only once per process,
-    so it is set the first time and shared: the processors are the ones telemetry.setup() adds.
+    """Spans finished during the test. The global provider can be set only once per process
+    (other tests may have set it), so our processors, the ones telemetry.setup() adds, are added
+    to whichever provider is there, once.
     """
+    global _added
     if not isinstance(trace.get_tracer_provider(), TracerProvider):
-        provider = TracerProvider()
+        trace.set_tracer_provider(TracerProvider())
+    if not _added:
+        provider = trace.get_tracer_provider()
         provider.add_span_processor(BaggageSpanProcessor(telemetry.baggage_key_allowed))
         provider.add_span_processor(SimpleSpanProcessor(EXPORTER))
-        trace.set_tracer_provider(provider)
+        _added = True
     EXPORTER.clear()
     return EXPORTER
 

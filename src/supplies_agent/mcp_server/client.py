@@ -7,10 +7,13 @@ import time
 from typing import Any
 
 import httpx2
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind, StatusCode
 
 from supplies_agent.mcp_server.settings import McpSettings
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)  # a no-op until telemetry.setup() sets a provider
 
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
@@ -63,23 +66,39 @@ class SuppliesApi:
             while attempt < s.max_attempts and time.monotonic() < deadline:
                 attempt += 1
                 retry_after: float | None = None
-                try:
-                    # asyncio.timeout bounds the whole attempt, whatever the transport does.
-                    async with asyncio.timeout(min(s.attempt_timeout, deadline - time.monotonic())):
-                        response = await http.request(
-                            method, path, params=params, json=json, headers=headers
-                        )
-                except TimeoutError:
-                    last_error = "no response within the attempt timeout"
-                except httpx2.TransportError as e:
-                    last_error = f"{type(e).__name__}: {e}"
-                else:
-                    if response.status_code not in RETRYABLE_STATUS:
-                        if response.is_success:
-                            return response
-                        raise ApiRejected(response.status_code, _detail(response))
-                    last_error = f"HTTP {response.status_code}"
-                    retry_after = _retry_after(response)
+                # One span per attempt, so retries and injected faults show up in the trace.
+                with tracer.start_as_current_span(
+                    f"supplies API {method}",
+                    kind=SpanKind.CLIENT,
+                    attributes={
+                        "http.request.method": method,
+                        "url.path": path,
+                        "supplies.attempt": attempt,
+                    },
+                ) as span:
+                    try:
+                        # asyncio.timeout bounds the whole attempt, whatever the transport does.
+                        async with asyncio.timeout(
+                            min(s.attempt_timeout, deadline - time.monotonic())
+                        ):
+                            response = await http.request(
+                                method, path, params=params, json=json, headers=headers
+                            )
+                    except TimeoutError:
+                        last_error = "no response within the attempt timeout"
+                    except httpx2.TransportError as e:
+                        last_error = f"{type(e).__name__}: {e}"
+                    else:
+                        span.set_attribute("http.response.status_code", response.status_code)
+                        if fault := response.headers.get("X-Fault-Injected"):
+                            span.set_attribute("supplies.fault_injected", fault)
+                        if response.status_code not in RETRYABLE_STATUS:
+                            if response.is_success:
+                                return response
+                            raise ApiRejected(response.status_code, _detail(response))
+                        last_error = f"HTTP {response.status_code}"
+                        retry_after = _retry_after(response)
+                    span.set_status(StatusCode.ERROR, last_error)
 
                 if attempt < s.max_attempts:
                     delay = retry_after if retry_after is not None else self._backoff(attempt)
