@@ -143,7 +143,7 @@ The agent service follows the AgentCore Runtime HTTP contract (Option B, custom 
 - `POST /invocations` (JSON body: `message`, or `approvals` to decide on pending purchase orders), `GET /ping` → `{"status": "Healthy"}`, port 8080, host `0.0.0.0` in containers, `linux/arm64` images.
 - Identity travels in headers only, never in the body; both are required and validated against the same safe-id pattern:
   - Session: `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id`. AgentCore sets it from `runtimeSessionId`; locally the client (UI, evals, curl) sets it.
-  - User: `X-User-Id`, the same name the MCP server reads. On AgentCore it must be added to the runtime's request-header allowlist.
+  - User: `X-User-Id`, the same name the MCP server reads. It can't pass through AgentCore Runtime as is: Runtime forwards only allowlisted headers, and only `Authorization` or names starting with `X-Amzn-Bedrock-AgentCore-Runtime-Custom-` can be allowlisted. On AgentCore the user comes from the JWT (see AGENTCORE.md §5).
 - The local version trusts `X-User-Id`. On AgentCore the user must come from a validated JWT (`customJWTAuthorizer`), not a plain header. Note this in README/AGENTCORE.md.
 - Not `BedrockAgentCoreApp` (Option A): we already have FastAPI and want no extra dependency.
 - AgentCore microVMs are per session with temporary disk, so local SQLite state is a local-only choice; on AgentCore, sessions move to AgentCore Memory (see Memory).

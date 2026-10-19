@@ -262,7 +262,7 @@ Tool errors are written as instructions the model can act on, not as raw HTTP er
 
 Every error message: [docs/MCP.md](docs/MCP.md#errors).
 
-### 4.3 Auth to the mock
+### 4.3 Auth to the supplies API
 
 - MCP server → mock: an `X-API-Key` header on every request (`MCP_API_KEY` / `API_KEY`, set from `MOCK_API_KEY` in compose). Missing or wrong key → 401 ([docs/SUPPLIES_API.md](docs/SUPPLIES_API.md#authentication)).
 - Agent service → MCP server: the caller's `user_id` and `session_id` travel as connection headers set by the service, never by the model. The MCP server uses them for idempotency keys.
