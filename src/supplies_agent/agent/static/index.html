@@ -287,6 +287,7 @@ function markdown(text) {
         i++;
       }
       const [head, ...body] = rows;
+      if (!head) continue;  // mid-stream, a lone "|" looks like a separator row
       root.append(el("div", { class: "table" }, el("table", {},
         el("tr", {}, ...head.map((c) => el("th", {}, ...inline(c)))),
         ...body.map((r) => el("tr", {}, ...r.map((c) => el("td", {}, ...inline(c))))))));
